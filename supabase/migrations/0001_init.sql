@@ -202,3 +202,68 @@ end;
 $$;
 
 grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: submit_checkin
+-- -----------------------------------------------------------------------------
+-- Mesma lógica do register_athlete acima: o Postgres, ao processar um
+-- "upsert" (INSERT ... ON CONFLICT DO UPDATE), também confere se quem
+-- escreveu tem permissão de leitura envolvida no processo — o que quebra
+-- pra quem não está logado. Uma função com privilégio elevado resolve.
+create or replace function public.submit_checkin(
+  p_athlete_id uuid,
+  p_data date,
+  p_modalidade text,
+  p_tipo text,
+  p_tipo_outro text default null,
+  p_minutos numeric default null,
+  p_distancia_km numeric default null,
+  p_tempo_min numeric default null,
+  p_rpe integer default null,
+  p_sono_horas numeric default null,
+  p_fadiga integer default null,
+  p_estresse integer default null,
+  p_tem_dor boolean default false,
+  p_dor integer default 0,
+  p_recuperacao integer default null,
+  p_regiao_dor text default null,
+  p_observacoes text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.checkins (
+    athlete_id, data, modalidade, tipo, tipo_outro, minutos, distancia_km,
+    tempo_min, rpe, sono_horas, fadiga, estresse, tem_dor, dor, recuperacao,
+    regiao_dor, observacoes
+  ) values (
+    p_athlete_id, p_data, p_modalidade, p_tipo, p_tipo_outro, p_minutos, p_distancia_km,
+    p_tempo_min, p_rpe, p_sono_horas, p_fadiga, p_estresse, p_tem_dor, p_dor, p_recuperacao,
+    p_regiao_dor, p_observacoes
+  )
+  on conflict (athlete_id, data) do update set
+    modalidade = excluded.modalidade,
+    tipo = excluded.tipo,
+    tipo_outro = excluded.tipo_outro,
+    minutos = excluded.minutos,
+    distancia_km = excluded.distancia_km,
+    tempo_min = excluded.tempo_min,
+    rpe = excluded.rpe,
+    sono_horas = excluded.sono_horas,
+    fadiga = excluded.fadiga,
+    estresse = excluded.estresse,
+    tem_dor = excluded.tem_dor,
+    dor = excluded.dor,
+    recuperacao = excluded.recuperacao,
+    regiao_dor = excluded.regiao_dor,
+    observacoes = excluded.observacoes;
+end;
+$$;
+
+grant execute on function public.submit_checkin(
+  uuid, date, text, text, text, numeric, numeric, numeric, integer, numeric,
+  integer, integer, boolean, integer, integer, text, text
+) to public;

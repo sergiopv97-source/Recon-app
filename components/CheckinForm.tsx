@@ -137,28 +137,25 @@ export default function CheckinForm() {
         return;
       }
 
-      const { error: upsertErr } = await supabase.from("checkins").upsert(
-        {
-          athlete_id: athleteId,
-          data: form.data,
-          modalidade: form.modalidade,
-          tipo: form.tipo,
-          tipo_outro: form.tipo === "Outro" ? form.tipoOutro : null,
-          minutos: form.minutos === "" ? null : Number(form.minutos),
-          distancia_km: form.distanciaKm === "" ? null : Number(form.distanciaKm),
-          tempo_min: form.tempoMin === "" ? null : Number(form.tempoMin),
-          rpe: Number(form.rpe),
-          sono_horas: Number(form.sonoHoras),
-          fadiga: Number(form.fadiga),
-          estresse: Number(form.estresse),
-          tem_dor: form.temDor,
-          dor: form.temDor ? Number(form.dorNivel) : 0,
-          recuperacao: Number(form.recuperacao),
-          regiao_dor: form.regiaoDor || null,
-          observacoes: form.observacoes || null,
-        },
-        { onConflict: "athlete_id,data" },
-      );
+      const { error: upsertErr } = await supabase.rpc("submit_checkin", {
+        p_athlete_id: athleteId,
+        p_data: form.data,
+        p_modalidade: form.modalidade,
+        p_tipo: form.tipo,
+        p_tipo_outro: form.tipo === "Outro" ? form.tipoOutro : null,
+        p_minutos: form.minutos === "" ? null : Number(form.minutos),
+        p_distancia_km: form.distanciaKm === "" ? null : Number(form.distanciaKm),
+        p_tempo_min: form.tempoMin === "" ? null : Number(form.tempoMin),
+        p_rpe: Number(form.rpe),
+        p_sono_horas: Number(form.sonoHoras),
+        p_fadiga: Number(form.fadiga),
+        p_estresse: Number(form.estresse),
+        p_tem_dor: form.temDor,
+        p_dor: form.temDor ? Number(form.dorNivel) : 0,
+        p_recuperacao: Number(form.recuperacao),
+        p_regiao_dor: form.regiaoDor || null,
+        p_observacoes: form.observacoes || null,
+      });
       if (upsertErr) throw upsertErr;
 
       setSavedMsg("Registro salvo.");
