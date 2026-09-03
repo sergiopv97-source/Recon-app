@@ -94,7 +94,7 @@ A Vercel é quem hospeda o site e te dá o link público.
 4. Na tela de configuração, abra **"Environment Variables"** e adicione as
    duas variáveis que você anotou no passo anterior:
    - `NEXT_PUBLIC_SUPABASE_URL` → cole o **Project URL**
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → cole a **anon public key**
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → cole a **anon public key**
 5. Clique em **"Deploy"** e espere 1–2 minutos.
 6. Quando terminar, a Vercel te dá um link tipo
    `https://recon-app.vercel.app`. Esse é o endereço do seu site:
