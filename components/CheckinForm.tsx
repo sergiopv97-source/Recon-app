@@ -17,6 +17,7 @@ import {
 } from "@/lib/recon";
 import { checkinRowToInput, type AthleteRosterRow, type CheckinRow } from "@/lib/db-types";
 import { inputStyle, primaryButtonStyle, cardStyle } from "@/lib/ui";
+import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
 
 const emptyForm = {
@@ -169,7 +170,7 @@ export default function CheckinForm() {
       const { data: refreshed } = await supabase.rpc("get_own_recent_checkins", { p_athlete_id: athleteId });
       if (refreshed) setRecentRows(refreshed as CheckinRow[]);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "erro desconhecido";
+      const message = errorMessage(err);
       setErrorMsg("Não foi possível salvar: " + message + ". Tente novamente.");
     } finally {
       setSaving(false);
