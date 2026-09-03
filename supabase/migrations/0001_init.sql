@@ -169,3 +169,36 @@ as $$
 $$;
 
 grant execute on function public.get_own_recent_checkins(uuid) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: register_athlete
+-- -----------------------------------------------------------------------------
+-- Cadastra um atleta novo e devolve o id gerado. Usamos uma função (em vez de
+-- inserir direto na tabela pelo site) porque o Postgres, ao devolver a linha
+-- recém-criada, também checa se quem inseriu tem permissão de LER aquela
+-- linha — e só o treinador logado tem essa permissão na tabela "athletes".
+-- Como esta função roda com privilégio elevado (SECURITY DEFINER), ela
+-- consegue devolver o id sem exigir isso, sem abrir a leitura da tabela pra
+-- ninguém.
+create or replace function public.register_athlete(
+  p_nome text,
+  p_idade integer default null,
+  p_peso numeric default null,
+  p_altura numeric default null,
+  p_posicao text default null,
+  p_historico_lesoes text default null
+)
+returns table (id uuid, nome text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  return query
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes)
+    returning athletes.id, athletes.nome;
+end;
+$$;
+
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text) to public;

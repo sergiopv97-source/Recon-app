@@ -118,21 +118,18 @@ export default function CheckinForm() {
           setSaving(false);
           return;
         }
-        const { data: inserted, error: insertErr } = await supabase
-          .from("athletes")
-          .insert({
-            nome: nomeFinal,
-            idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
-            peso: form.novoAtletaPeso ? Number(form.novoAtletaPeso) : null,
-            altura: form.novoAtletaAltura ? Number(form.novoAtletaAltura) : null,
-            posicao: form.novoAtletaPosicao.trim() || null,
-            historico_lesoes: form.novoAtletaLesoes.trim() || null,
-          })
-          .select("id, nome")
-          .single();
-        if (insertErr || !inserted) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
-        athleteId = inserted.id;
-        setRoster((prev) => [...prev, inserted].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+        const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
+          p_nome: nomeFinal,
+          p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
+          p_peso: form.novoAtletaPeso ? Number(form.novoAtletaPeso) : null,
+          p_altura: form.novoAtletaAltura ? Number(form.novoAtletaAltura) : null,
+          p_posicao: form.novoAtletaPosicao.trim() || null,
+          p_historico_lesoes: form.novoAtletaLesoes.trim() || null,
+        });
+        const novoAtletaRow = inserted?.[0];
+        if (insertErr || !novoAtletaRow) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
+        athleteId = novoAtletaRow.id;
+        setRoster((prev) => [...prev, novoAtletaRow].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
       }
 
       if (!athleteId) {
