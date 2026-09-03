@@ -25,10 +25,14 @@ create table if not exists public.athletes (
 alter table public.athletes enable row level security;
 
 -- Qualquer pessoa com o link (mesmo sem login) pode cadastrar um novo atleta
--- na primeira vez que preencher o check-in (igual ao protótipo).
+-- na primeira vez que preencher o check-in (igual ao protótipo). Sem "to"
+-- aqui de propósito (vale pra PUBLIC) — a chave pública nova do Supabase
+-- ("publishable key") nem sempre resolve pro papel "anon" exatamente, então
+-- restringir a policy a "anon, authenticated" pode bloquear quem não tem
+-- login. A real proteção dos dados sensíveis está nas policies de SELECT
+-- abaixo, que continuam exigindo "authenticated" de verdade.
 create policy "athletes: qualquer um pode cadastrar" on public.athletes
   for insert
-  to anon, authenticated
   with check (true);
 
 -- Só o treinador logado enxerga os dados completos do cadastro (idade, peso,
@@ -51,7 +55,7 @@ create or replace view public.athletes_roster
   as
   select id, nome from public.athletes;
 
-grant select on public.athletes_roster to anon, authenticated;
+grant select on public.athletes_roster to public;
 
 -- -----------------------------------------------------------------------------
 -- Tabela: checkins (registro diário do atleta)
@@ -85,12 +89,10 @@ alter table public.checkins enable row level security;
 -- check-in — não existe login de atleta nesta versão.
 create policy "checkins: qualquer um pode enviar" on public.checkins
   for insert
-  to anon, authenticated
   with check (true);
 
 create policy "checkins: qualquer um pode corrigir o mesmo dia" on public.checkins
   for update
-  to anon, authenticated
   using (true)
   with check (true);
 
@@ -166,5 +168,4 @@ as $$
   limit 12;
 $$;
 
-revoke all on function public.get_own_recent_checkins(uuid) from public;
-grant execute on function public.get_own_recent_checkins(uuid) to anon, authenticated;
+grant execute on function public.get_own_recent_checkins(uuid) to public;
