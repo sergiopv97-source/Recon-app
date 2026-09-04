@@ -354,6 +354,32 @@ export interface Recomendacao {
 // ---------- recomendações de recovery baseadas em evidência ----------
 // cada item é marcado como "todos" (autocuidado, pode aparecer pro atleta) ou
 // "terapeutico" (recurso clínico/terapêutico — só aparece pro treinador)
+//
+// Revisado em set/2026 a partir de revisões sistemáticas e meta-análises
+// atuais (não é uma curadoria pessoal nem "média de artigos" — são as
+// conclusões de trabalhos publicados, citados abaixo). Principais fontes:
+// - Sono: Cureus/PMC 2025-26, revisões sobre sono e risco de lesão/desempenho
+//   em atletas (perda de sono associada a até 2x mais risco de lesão).
+// - Crioterapia pós treino de força: Piñero et al. 2024, European Journal of
+//   Sport Science — meta-análise mostrando que gelo logo após treino de
+//   força atenua ganho de força/hipertrofia. Por isso NÃO é recomendada pra
+//   "Musculação"/"CrossFit" (categoria "funcional") como recovery de rotina.
+// - Crioterapia em esforço prolongado/jogos: Cochrane CD008262 e
+//   Sports Medicine 2022 (Moore et al.) — reduz dor percebida e apoia
+//   desempenho em janelas curtas entre competições, sem o mesmo conflito
+//   com adaptação (o objetivo ali não é hipertrofia).
+// - Massagem: Frontiers in Physiology 2017 (Guo et al.), meta-análise — uma
+//   das intervenções com maior efeito medido pra dor muscular tardia.
+// - Compressão: Sports Medicine 2017 (Marqués-Jiménez et al.) e revisões
+//   mais recentes — efeito moderado, mais consistente em recuperação de
+//   força a partir de 24h.
+// - Alongamento pra dor muscular: Cochrane (Herbert 2011) — sem efeito
+//   clinicamente relevante. Por isso o app não promete alívio de dor via
+//   alongamento, só benefício geral de mobilidade.
+// - Recovery ativo: evidência mista/dependente do contexto (alguns estudos
+//   favorecem passivo pra desempenho de curto prazo, outros favorecem ativo
+//   pra remoção de lactato) — mantido como sugestão de baixo risco, não como
+//   benefício garantido.
 export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null, alertaClinico: Alerta | null): Recomendacao[] {
   const categoria = MODALIDADE_CATEGORIA[modalidade] || "impacto";
   const recs: Recomendacao[] = [];
@@ -362,14 +388,35 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
       recs.push({
         titulo: "Carga aguda muito acima do habitual (prova/treino longo)",
         itens: [
-          { texto: "Evitar recovery ativo intenso nas próximas horas — priorize descanso ou caminhada bem leve", publico: "todos" },
-          { texto: "Priorizar sono nas próximas noites", publico: "todos" },
-          { texto: "Reforçar hidratação e reposição de carboidratos", publico: "todos" },
+          { texto: "Priorizar sono nas próximas noites — é o fator isolado mais associado a queda de desempenho e maior risco de lesão", publico: "todos" },
+          { texto: "Reforçar hidratação e reposição de carboidratos nas horas seguintes", publico: "todos" },
+          { texto: "Evitar novo estímulo intenso nas próximas 24h — descanso ou caminhada bem leve", publico: "todos" },
           {
-            texto: "Crioterapia (banho de gelo, 10–15 min) — evidência favorável específica pra esforço prolongado de corpo inteiro",
+            texto: "Crioterapia (banho de gelo, 10–15 min) — reduz dor/fadiga percebida em esforço prolongado de corpo inteiro (Cochrane CD008262; Sports Medicine 2022)",
             publico: "terapeutico",
           },
-          { texto: "Massagem tem efeito parecido ao banho de gelo na percepção de dor e fadiga", publico: "terapeutico" },
+          { texto: "Massagem tem efeito parecido ao banho de gelo na percepção de dor e fadiga (meta-análise, Frontiers in Physiology 2017)", publico: "terapeutico" },
+        ],
+      });
+    } else if (categoria === "funcional") {
+      // CrossFit/Musculação: aqui o objetivo geralmente é ganho de força ou
+      // hipertrofia, então crioterapia de rotina é contraindicada logo após
+      // a sessão (ver nota de evidência no comentário acima da função).
+      recs.push({
+        titulo: "Carga aguda muito acima do habitual (treino de força/potência)",
+        itens: [
+          { texto: "Reduzir volume ou intensidade da próxima sessão de força", publico: "todos" },
+          { texto: "Priorizar sono — é quando ocorre boa parte da recuperação neuromuscular", publico: "todos" },
+          {
+            texto:
+              "Evitar gelo/crioterapia nas horas seguintes se o objetivo for ganho de força/hipertrofia — meta-análise recente (Piñero et al. 2024) mostra que gelo logo após treino de força atenua a adaptação. Reservar crioterapia pra dias de competição, não pra rotina de treino de base.",
+            publico: "terapeutico",
+          },
+          {
+            texto: "Compressão — evidência mais consistente aqui do que em outras modalidades: benefício moderado na recuperação de força a partir de 24h (Sports Medicine 2017)",
+            publico: "terapeutico",
+          },
+          { texto: "Massagem segue com bom suporte de evidência pra reduzir dor muscular percebida (Frontiers in Physiology 2017)", publico: "terapeutico" },
         ],
       });
     } else {
@@ -378,7 +425,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
         itens: [
           { texto: "Reduzir ou diminuir a intensidade da próxima sessão", publico: "todos" },
           { texto: "Priorizar sono — é onde a maior parte da recuperação física acontece", publico: "todos" },
-          { texto: "Crioterapia (imersão em água fria) nas primeiras 24–48h", publico: "terapeutico" },
+          {
+            texto: "Crioterapia (imersão em água fria) nas primeiras 24–48h — ajuda a chegar melhor pro próximo jogo quando a competição é próxima (Cochrane CD008262)",
+            publico: "terapeutico",
+          },
+          { texto: "Compressão pode ajudar a recuperação, com efeito moderado (Sports Medicine 2017)", publico: "terapeutico" },
         ],
       });
     }
@@ -392,7 +443,7 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
               { texto: "Atenção a sono e reidratação nas próximas 24h", publico: "todos" },
             ]
           : [
-              { texto: "Recovery ativo leve (aeróbico baixo, mobilidade)", publico: "todos" },
+              { texto: "Movimento leve (mobilidade, aeróbico bem baixo) — evidência de recovery ativo é mista, mas sem contraindicação nessa intensidade", publico: "todos" },
               { texto: "Atenção a sono e hidratação nas próximas 24h", publico: "todos" },
             ],
     });
@@ -403,14 +454,18 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
       itens: [
         { texto: "Evitar novo estímulo de alta carga até a dor reduzir", publico: "todos" },
         { texto: "Avisar o fisioterapeuta antes da próxima sessão intensa", publico: "todos" },
-        { texto: "Compressão pode reduzir a percepção de dor muscular (evidência ainda moderada)", publico: "terapeutico" },
+        { texto: "Compressão pode reduzir a percepção de dor muscular, com efeito moderado a bom (Sports Medicine 2017)", publico: "terapeutico" },
+        { texto: "Massagem está entre as intervenções com maior efeito medido pra dor muscular (Frontiers in Physiology 2017)", publico: "terapeutico" },
       ],
     });
   } else if (alertaClinico?.tone === "warn") {
     recs.push({
       titulo: "Sinais de fadiga/dor leve — monitorar",
       itens: [
-        { texto: "Alongamento e mobilidade", publico: "todos" },
+        {
+          texto: "Mobilidade ativa leve — o alongamento estático isolado tem pouca evidência de reduzir dor muscular (Cochrane), mas movimento leve ajuda no conforto geral",
+          publico: "todos",
+        },
         { texto: "Reforçar higiene do sono", publico: "todos" },
       ],
     });
