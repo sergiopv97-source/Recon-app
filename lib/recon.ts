@@ -483,6 +483,18 @@ export interface Recomendacao {
 //   favorecem passivo pra desempenho de curto prazo, outros favorecem ativo
 //   pra remoção de lactato) — mantido como sugestão de baixo risco, não como
 //   benefício garantido.
+// - Fotobiomodulação (luz vermelha ~660nm / infravermelho próximo ~850nm):
+//   diferente de tudo acima, a evidência mais forte é pra aplicação ANTES do
+//   esforço (não depois) — revisão sistemática de 2025 encontrou redução de
+//   fadiga e de dor muscular 24h depois quando aplicada pré-treino; outra
+//   revisão de 2025 (14 estudos) encontrou redução de dor muscular tardia
+//   também no uso pós-treino; meta-análise de 2024 associou a queda de até
+//   40% em marcadores inflamatórios (PCR, IL-6). Por isso essa recomendação
+//   aparece como "usar antes da próxima sessão intensa", não "logo após
+//   esta sessão". RESSALVA IMPORTANTE: a literatura tem heterogeneidade
+//   grande de protocolo (comprimento de onda, potência, tempo de aplicação)
+//   sem padrão estabelecido — o resultado depende muito do aparelho
+//   específico, não é "ter luz vermelha" genérico.
 export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null, alertaClinico: Alerta | null): Recomendacao[] {
   const categoria = MODALIDADE_CATEGORIA[modalidade] || "impacto";
   const recs: Recomendacao[] = [];
@@ -499,6 +511,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
             publico: "terapeutico",
           },
           { texto: "Massagem tem efeito parecido ao banho de gelo na percepção de dor e fadiga (meta-análise, Frontiers in Physiology 2017)", publico: "terapeutico" },
+          {
+            texto:
+              "Fotobiomodulação (luz vermelha/infravermelho) antes da próxima sessão intensa — evidência de 2025 aponta redução de fadiga e dor subsequente quando aplicada pré-treino; combina bem com massagem. Resultado depende do aparelho específico (sem protocolo padrão na literatura).",
+            publico: "terapeutico",
+          },
         ],
       });
     } else if (categoria === "funcional") {
@@ -524,6 +541,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
             publico: "terapeutico",
           },
           { texto: "Massagem segue com bom suporte de evidência pra reduzir dor muscular percebida (Frontiers in Physiology 2017)", publico: "terapeutico" },
+          {
+            texto:
+              "Fotobiomodulação (luz vermelha/infravermelho) antes da próxima sessão de força — evidência de 2025 aponta redução de fadiga e dor subsequente quando aplicada pré-treino. Resultado depende do aparelho específico (sem protocolo padrão na literatura).",
+            publico: "terapeutico",
+          },
         ],
       });
     } else {
@@ -539,6 +561,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
           { texto: "Compressão (roupa elástica) pode ajudar a recuperação, com efeito moderado (Sports Medicine 2017)", publico: "terapeutico" },
           {
             texto: "Bota de compressão pneumática — efeito pequeno a moderado na dor muscular percebida, pico por volta de 48h (meta-análise 2024, Frontiers in Physiology)",
+            publico: "terapeutico",
+          },
+          {
+            texto:
+              "Fotobiomodulação (luz vermelha/infravermelho) antes do próximo jogo/treino intenso — evidência de 2025 aponta redução de fadiga e dor subsequente quando aplicada pré-treino; combina bem com massagem ou bota de compressão. Resultado depende do aparelho específico (sem protocolo padrão na literatura).",
             publico: "terapeutico",
           },
         ],
@@ -571,6 +598,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
           publico: "terapeutico",
         },
         { texto: "Massagem está entre as intervenções com maior efeito medido pra dor muscular (Frontiers in Physiology 2017)", publico: "terapeutico" },
+        {
+          texto:
+            "Fotobiomodulação (luz vermelha/infravermelho) antes da próxima sessão intensa — revisão de 2025 (14 estudos) encontrou redução de dor muscular tardia; combina bem com massagem ou bota de compressão. Resultado depende do aparelho específico (sem protocolo padrão na literatura).",
+          publico: "terapeutico",
+        },
       ],
     });
   } else if (alertaClinico?.tone === "warn") {
