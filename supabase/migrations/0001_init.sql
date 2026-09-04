@@ -19,6 +19,7 @@ create table if not exists public.athletes (
   altura numeric,
   posicao text,
   historico_lesoes text,
+  consentimento_aceito_em timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -179,14 +180,20 @@ grant execute on function public.get_own_recent_checkins(uuid) to public;
 -- linha — e só o treinador logado tem essa permissão na tabela "athletes".
 -- Como esta função roda com privilégio elevado (SECURITY DEFINER), ela
 -- consegue devolver o id sem exigir isso, sem abrir a leitura da tabela pra
--- ninguém.
+-- ninguém. Também exige o aceite do termo de consentimento (LGPD) — sem
+-- isso, o cadastro é recusado mesmo que alguém tente pular a tela pelo app.
+-- (o "drop" abaixo remove uma versão antiga desta função, sem o parâmetro
+-- de consentimento, pra não deixar duas versões ambíguas coexistindo)
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text);
+
 create or replace function public.register_athlete(
   p_nome text,
   p_idade integer default null,
   p_peso numeric default null,
   p_altura numeric default null,
   p_posicao text default null,
-  p_historico_lesoes text default null
+  p_historico_lesoes text default null,
+  p_consentimento_aceito boolean default false
 )
 returns table (id uuid, nome text)
 language plpgsql
@@ -194,14 +201,18 @@ security definer
 set search_path = public
 as $$
 begin
+  if not p_consentimento_aceito then
+    raise exception 'É necessário aceitar o termo de consentimento para se cadastrar.';
+  end if;
+
   return query
-    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes)
-    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes)
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, now())
     returning athletes.id, athletes.nome;
 end;
 $$;
 
-grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text) to public;
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean) to public;
 
 -- -----------------------------------------------------------------------------
 -- Função: submit_checkin

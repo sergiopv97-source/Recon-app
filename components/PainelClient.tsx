@@ -334,6 +334,14 @@ export default function PainelClient() {
                   <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
                     Lesões prévias (cadastro): {infoAtleta.historico_lesoes || "nenhuma informada"}
                   </div>
+                  <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
+                    Termo de consentimento (LGPD):{" "}
+                    {infoAtleta.consentimento_aceito_em ? (
+                      <span style={{ color: "#2F7D52" }}>aceito em {formatarDataCurta(infoAtleta.consentimento_aceito_em.slice(0, 10))}</span>
+                    ) : (
+                      <span style={{ color: "#B23A32" }}>ainda não aceito</span>
+                    )}
+                  </div>
 
                   {lesoesAtleta.length > 0 && (
                     <div style={{ marginBottom: 10 }}>

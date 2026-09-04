@@ -19,6 +19,7 @@ import { checkinRowToInput, type AthleteRosterRow, type CheckinRow } from "@/lib
 import { inputStyle, primaryButtonStyle, cardStyle } from "@/lib/ui";
 import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
+import TermoConsentimento from "@/components/TermoConsentimento";
 
 const emptyForm = {
   atleta: "",
@@ -28,6 +29,7 @@ const emptyForm = {
   novoAtletaPeso: "",
   novoAtletaAltura: "",
   novoAtletaPosicao: "",
+  aceitouTermos: false,
   data: new Date().toISOString().slice(0, 10),
   modalidade: "Futsal" as Modalidade,
   tipo: "Jogo",
@@ -118,6 +120,11 @@ export default function CheckinForm() {
           setSaving(false);
           return;
         }
+        if (!form.aceitouTermos) {
+          setErrorMsg("Precisa aceitar o termo de consentimento pra continuar.");
+          setSaving(false);
+          return;
+        }
         const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
           p_nome: nomeFinal,
           p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
@@ -125,6 +132,7 @@ export default function CheckinForm() {
           p_altura: form.novoAtletaAltura ? Number(form.novoAtletaAltura) : null,
           p_posicao: form.novoAtletaPosicao.trim() || null,
           p_historico_lesoes: form.novoAtletaLesoes.trim() || null,
+          p_consentimento_aceito: true,
         });
         const novoAtletaRow = inserted?.[0];
         if (insertErr || !novoAtletaRow) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
@@ -253,6 +261,9 @@ export default function CheckinForm() {
               value={form.novoAtletaLesoes}
               onChange={(e) => setForm({ ...form, novoAtletaLesoes: e.target.value })}
             />
+            <div style={{ marginTop: 16 }}>
+              <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} />
+            </div>
           </>
         )}
       </div>

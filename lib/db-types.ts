@@ -14,6 +14,7 @@ export interface AthleteRow extends AthleteRosterRow {
   altura: number | null;
   posicao: string | null;
   historico_lesoes: string | null;
+  consentimento_aceito_em: string | null;
   created_at: string;
 }
 

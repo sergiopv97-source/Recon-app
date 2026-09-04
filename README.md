@@ -159,9 +159,13 @@ Vindo direto do briefing original — ainda não estão nesta versão:
   sessão (hoje é só um aviso fixo na tela).
 - **Estresse percebido** ainda é só coletado, não entra nas fórmulas de
   alerta (assim como no protótipo original).
-- **Termo de consentimento LGPD** — o texto já existe (arquivo separado no
-  briefing); falta incorporar como uma tela de aceite no cadastro do
-  atleta.
+
+✅ **Termo de consentimento LGPD** — já implementado. Todo atleta novo vê o
+termo completo e precisa marcar "li e concordo" antes do primeiro check-in
+ser aceito (a regra é aplicada no próprio banco de dados, não só na tela).
+A data do aceite aparece no painel do treinador, na ficha de cada atleta.
+Texto em `lib/consentimento.ts` — se precisar mudar algo nele (ex: trocar o
+contato), é só editar esse arquivo.
 
 ---
 
