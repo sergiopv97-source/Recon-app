@@ -58,6 +58,12 @@ export default function CheckinForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [recentRows, setRecentRows] = useState<CheckinRow[]>([]);
 
+  // Fluxo em etapas: primeiro a pessoa se identifica (nome), só depois vê o
+  // questionário do dia — evita a sensação de "formulário gigante de cara"
+  // e deixa claro que a identificação é uma etapa própria.
+  const [etapa, setEtapa] = useState<"nome" | "cadastro" | "checkin">("nome");
+  const [buscaNome, setBuscaNome] = useState("");
+
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.from("athletes_roster").select("id, nome").order("nome", { ascending: true });
@@ -84,6 +90,29 @@ export default function CheckinForm() {
       cancelled = true;
     };
   }, [form.atleta, supabase]);
+
+  const sugestoes = useMemo(() => {
+    const q = buscaNome.trim().toLowerCase();
+    if (!q) return [];
+    return roster.filter((a) => a.nome.toLowerCase().includes(q)).slice(0, 6);
+  }, [roster, buscaNome]);
+
+  function selecionarAtleta(a: AthleteRosterRow) {
+    setForm({ ...form, atleta: a.id });
+    setBuscaNome(a.nome);
+    setEtapa("checkin");
+  }
+
+  function iniciarCadastro() {
+    setForm({ ...form, atleta: "__novo__", novoAtleta: buscaNome.trim() });
+    setEtapa("cadastro");
+  }
+
+  function trocarAtleta() {
+    setForm(emptyForm);
+    setBuscaNome("");
+    setEtapa("nome");
+  }
 
   const nomeAtletaSelecionado = useMemo(() => {
     if (form.atleta === "__novo__") return form.novoAtleta.trim();
@@ -200,72 +229,140 @@ export default function CheckinForm() {
         Preencha entre 1h e 1h30 depois do fim do treino/jogo — depois disso a lembrança do esforço fica menos precisa.
       </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <label style={{ fontSize: 13, color: "#5B6664" }}>Atleta</label>
-        <select style={inputStyle} value={form.atleta} onChange={(e) => setForm({ ...form, atleta: e.target.value })} required>
-          <option value="" disabled>
-            Selecione seu nome
-          </option>
-          {roster.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.nome}
-            </option>
-          ))}
-          <option value="__novo__">+ Meu nome não está na lista</option>
-        </select>
-        {form.atleta === "__novo__" && (
-          <>
-            <input
-              style={{ ...inputStyle, marginTop: 10 }}
-              placeholder="Digite seu nome completo"
-              value={form.novoAtleta}
-              onChange={(e) => setForm({ ...form, novoAtleta: e.target.value })}
-              required
-            />
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                placeholder="Idade"
-                value={form.novoAtletaIdade}
-                onChange={(e) => setForm({ ...form, novoAtletaIdade: e.target.value })}
-              />
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                step="0.1"
-                placeholder="Peso (kg)"
-                value={form.novoAtletaPeso}
-                onChange={(e) => setForm({ ...form, novoAtletaPeso: e.target.value })}
-              />
-              <input
-                style={inputStyle}
-                type="number"
-                min="0"
-                placeholder="Altura (cm)"
-                value={form.novoAtletaAltura}
-                onChange={(e) => setForm({ ...form, novoAtletaAltura: e.target.value })}
-              />
+      {etapa === "nome" && (
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Qual é o seu nome?</label>
+          <input
+            style={{ ...inputStyle, marginTop: 8 }}
+            placeholder="Digite seu nome"
+            value={buscaNome}
+            onChange={(e) => setBuscaNome(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.preventDefault();
+            }}
+            autoFocus
+          />
+          {buscaNome.trim() && (
+            <div style={{ marginTop: 8, background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 6, overflow: "hidden" }}>
+              {sugestoes.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => selecionarAtleta(a)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    background: "#FFFFFF",
+                    border: "none",
+                    borderBottom: "1px solid #E7ECEA",
+                    cursor: "pointer",
+                    fontSize: 15,
+                    color: "#14201F",
+                  }}
+                >
+                  {a.nome}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={iniciarCadastro}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  background: "#F7F8F7",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  color: "#297379",
+                  fontWeight: 600,
+                }}
+              >
+                + Cadastrar &quot;{buscaNome.trim()}&quot; como novo atleta
+              </button>
             </div>
+          )}
+        </div>
+      )}
+
+      {etapa === "cadastro" && (
+        <div style={{ marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={trocarAtleta}
+            style={{ background: "none", border: "none", color: "#5B6664", fontSize: 12, marginBottom: 10, cursor: "pointer", padding: 0 }}
+          >
+            ‹ trocar nome
+          </button>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 12 }}>Cadastro rápido — {form.novoAtleta}</div>
+          <div style={{ display: "flex", gap: 8 }}>
             <input
-              style={{ ...inputStyle, marginTop: 10 }}
-              placeholder="Posição / prova principal (ex: fixo, ala, meia maratona)"
-              value={form.novoAtletaPosicao}
-              onChange={(e) => setForm({ ...form, novoAtletaPosicao: e.target.value })}
+              style={inputStyle}
+              type="number"
+              min="0"
+              placeholder="Idade"
+              value={form.novoAtletaIdade}
+              onChange={(e) => setForm({ ...form, novoAtletaIdade: e.target.value })}
             />
             <input
-              style={{ ...inputStyle, marginTop: 10 }}
-              placeholder="Teve alguma lesão antes? Qual e quando (opcional)"
-              value={form.novoAtletaLesoes}
-              onChange={(e) => setForm({ ...form, novoAtletaLesoes: e.target.value })}
+              style={inputStyle}
+              type="number"
+              min="0"
+              step="0.1"
+              placeholder="Peso (kg)"
+              value={form.novoAtletaPeso}
+              onChange={(e) => setForm({ ...form, novoAtletaPeso: e.target.value })}
             />
-            <div style={{ marginTop: 16 }}>
-              <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} />
-            </div>
-          </>
-        )}
+            <input
+              style={inputStyle}
+              type="number"
+              min="0"
+              placeholder="Altura (cm)"
+              value={form.novoAtletaAltura}
+              onChange={(e) => setForm({ ...form, novoAtletaAltura: e.target.value })}
+            />
+          </div>
+          <input
+            style={{ ...inputStyle, marginTop: 10 }}
+            placeholder="Posição / prova principal (ex: fixo, ala, meia maratona)"
+            value={form.novoAtletaPosicao}
+            onChange={(e) => setForm({ ...form, novoAtletaPosicao: e.target.value })}
+          />
+          <input
+            style={{ ...inputStyle, marginTop: 10 }}
+            placeholder="Teve alguma lesão antes? Qual e quando (opcional)"
+            value={form.novoAtletaLesoes}
+            onChange={(e) => setForm({ ...form, novoAtletaLesoes: e.target.value })}
+          />
+          <div style={{ marginTop: 16, marginBottom: 16 }}>
+            <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} />
+          </div>
+          <button
+            type="button"
+            disabled={!form.aceitouTermos}
+            onClick={() => setEtapa("checkin")}
+            style={{
+              ...primaryButtonStyle,
+              width: "100%",
+              opacity: form.aceitouTermos ? 1 : 0.5,
+              cursor: form.aceitouTermos ? "pointer" : "not-allowed",
+            }}
+          >
+            Continuar
+          </button>
+        </div>
+      )}
+
+      {etapa === "checkin" && (
+        <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#14201F" }}>Olá, {nomeAtletaSelecionado}</div>
+        <button type="button" onClick={trocarAtleta} style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          trocar
+        </button>
       </div>
 
       {recsAutocuidado.length > 0 && (
@@ -493,6 +590,8 @@ export default function CheckinForm() {
       </button>
       {savedMsg && <div style={{ marginTop: 12, fontSize: 14, color: "#2F7D52", textAlign: "center" }}>{savedMsg}</div>}
       {errorMsg && <div style={{ marginTop: 12, fontSize: 14, color: "#B23A32", textAlign: "center" }}>{errorMsg}</div>}
+        </>
+      )}
     </form>
   );
 }
