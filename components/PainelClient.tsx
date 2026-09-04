@@ -8,6 +8,7 @@ import {
   computeMonotoniaStrain,
   riscoGeral,
   recomendacoes,
+  detectarDorRecorrente,
   formatarDataCurta,
   paceMinKm,
   ordemChave,
@@ -451,6 +452,7 @@ export default function PainelClient() {
         const ultimo = serie[serie.length - 1];
         const isOpen = expanded === athleteId;
         const lesoesAtleta = injuries.filter((l) => l.athlete_id === athleteId);
+        const dorRecorrente = detectarDorRecorrente(serie);
 
         return (
           <div key={athleteId} style={{ border: "1px solid #DCE3E1", borderRadius: 8, marginBottom: 12, overflow: "hidden" }}>
@@ -594,6 +596,30 @@ export default function PainelClient() {
                         </button>
                       </div>
                     </>
+                  )}
+
+                  {dorRecorrente.length > 0 && (
+                    <div style={{ marginBottom: 12, background: "#FBF3E7", border: "1px solid #EED9B8", borderRadius: 8, padding: "10px 12px" }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "#B9812E", letterSpacing: 0.4, marginBottom: 4 }}>
+                        ⚠ POSSÍVEL PADRÃO DE DOR RECORRENTE
+                      </div>
+                      {dorRecorrente.map((d) => (
+                        <div key={d.termo} style={{ fontSize: 12.5, color: "#14201F", marginBottom: 6 }}>
+                          &quot;{d.termo}&quot; apareceu em {d.ocorrencias.length} check-ins nos últimos 21 dias:
+                          <ul style={{ margin: "4px 0 0", paddingLeft: 18 }}>
+                            {d.ocorrencias.map((o) => (
+                              <li key={o.data} style={{ color: "#5B6664" }}>
+                                {formatarDataCurta(o.data)} — &quot;{o.regiaoDor}&quot;
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                      <div style={{ fontSize: 11, color: "#93A19E", marginTop: 4 }}>
+                        Isso é uma checagem de texto simples (busca palavra repetida na região informada), não um diagnóstico — dor recorrente na
+                        mesma região é um sinal clássico de lesão em formação, vale conferir e considerar avaliação específica.
+                      </div>
+                    </div>
                   )}
 
                   {lesoesAtleta.length > 0 && (

@@ -13,6 +13,7 @@ import {
   proximaData,
   paceMinKm,
   recomendacoes,
+  sequenciaCheckins,
   type Modalidade,
 } from "@/lib/recon";
 import { checkinRowToInput, type AthleteRosterRow, type CheckinRow, type RecadoRow } from "@/lib/db-types";
@@ -21,6 +22,7 @@ import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
 import TermoConsentimento from "@/components/TermoConsentimento";
 import HistoricoChart from "@/components/HistoricoChart";
+import type { MarcadorHistorico } from "@/components/HistoricoChart";
 
 // Chave usada pra lembrar, só neste aparelho, quem foi o último atleta a se
 // identificar — assim ele não precisa digitar o nome de novo toda vez.
@@ -221,6 +223,25 @@ export default function CheckinForm() {
   // pra hoje rapidamente se o atleta treinar de novo no mesmo dia.
   const hojeReal = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const jaTemCheckinHojeReal = useMemo(() => recentRows.some((r) => r.data === hojeReal), [recentRows, hojeReal]);
+
+  // Sequência de dias seguidos com check-in — só pra motivar o atleta a
+  // manter constância, não afeta nenhum cálculo de carga/risco.
+  const sequenciaAtual = useMemo(() => sequenciaCheckins(recentRows.map((r) => r.data), hojeReal), [recentRows, hojeReal]);
+
+  // Destaca no gráfico "ver meu histórico" os dias em que algum alerta
+  // vermelho apareceu — o atleta vê não só a linha subindo, mas qual dia
+  // gerou preocupação, com uma legenda curta do porquê.
+  const marcadoresAlerta = useMemo<MarcadorHistorico[]>(
+    () =>
+      serieRecente
+        .filter((e) => e.alertaCarga?.tone === "danger" || e.alertaClinico?.tone === "danger")
+        .map((e) => ({
+          id: e.id ?? e.data,
+          data: e.data,
+          label: e.alertaCarga?.tone === "danger" ? "carga alta" : "atenção clínica",
+        })),
+    [serieRecente]
+  );
 
   const recsAutocuidado = useMemo(() => {
     if (!ultimoAtleta) return [];
@@ -560,6 +581,24 @@ export default function CheckinForm() {
         </button>
       </div>
 
+      {sequenciaAtual >= 2 && (
+        <div
+          style={{
+            display: "inline-block",
+            background: "#E4F1F0",
+            border: "1px solid #DCE3E1",
+            borderRadius: 20,
+            padding: "4px 12px",
+            marginBottom: 14,
+            fontSize: 12.5,
+            color: "#297379",
+            fontWeight: 600,
+          }}
+        >
+          🔥 {sequenciaAtual} dias seguidos de check-in
+        </div>
+      )}
+
       {jaTemCheckinHojeReal && form.data !== hojeReal && (
         <button
           type="button"
@@ -593,7 +632,7 @@ export default function CheckinForm() {
           </button>
           {verHistorico && (
             <div style={{ marginTop: 10 }}>
-              <HistoricoChart serie={serieRecente} />
+              <HistoricoChart serie={serieRecente} marcadores={marcadoresAlerta} />
             </div>
           )}
         </div>

@@ -143,6 +143,26 @@ export function proximaData(dataISO: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+export function diaAnterior(dataISO: string): string {
+  const d = new Date(dataISO + "T12:00:00");
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Sequência de dias corridos com pelo menos um check-in, contando pra trás
+// a partir de hoje. Se hoje ainda não foi preenchido, começa a contar de
+// ontem — não zera a sequência só porque o dia ainda não acabou.
+export function sequenciaCheckins(datas: string[], hojeISO: string): number {
+  const unicas = new Set(datas);
+  let cursor = unicas.has(hojeISO) ? hojeISO : diaAnterior(hojeISO);
+  let streak = 0;
+  while (unicas.has(cursor)) {
+    streak++;
+    cursor = diaAnterior(cursor);
+  }
+  return streak;
+}
+
 // início (segunda-feira) da semana calendário que contém essa data — usado
 // pra agrupar corretamente em monotonia/strain
 export function inicioSemana(dataISO: string): string {
@@ -280,6 +300,81 @@ export function computeSeries(entries: CheckinInput[]): CheckinComputed[] {
       alertaIndividual,
     };
   });
+}
+
+export interface OcorrenciaDor {
+  data: string;
+  regiaoDor: string;
+}
+export interface AlertaDorRecorrente {
+  termo: string;
+  ocorrencias: OcorrenciaDor[];
+}
+
+// Palavras comuns demais pra servir de "pista" de região do corpo (evita
+// falso positivo tipo "de", "com", "leve" aparecendo 3x e sendo confundido
+// com um padrão real).
+const STOPWORDS_DOR = new Set([
+  "de", "da", "do", "das", "dos", "em", "no", "na", "nos", "nas", "ao", "aos",
+  "um", "uma", "uns", "umas", "com", "sem", "leve", "leves", "forte", "fortes",
+  "pouco", "pouca", "muito", "muita", "dor", "dores", "doi", "dói", "doendo",
+  "incomoda", "incomodo", "incômodo", "sinto", "sentindo", "sente", "quando",
+  "que", "mais", "menos", "ainda", "depois", "durante", "após",
+]);
+
+function normalizarPalavraDor(w: string): string {
+  return w
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z]/g, "");
+}
+
+// Detecta região de dor mencionada 3+ vezes (por padrão) numa janela recente
+// (por padrão, últimos 21 dias) — sinal clássico de lesão em formação que é
+// fácil de passar despercebido olhando check-in por check-in isoladamente.
+// É uma checagem de TEXTO simples, não um diagnóstico: serve pra chamar sua
+// atenção pra conferir os registros, não pra substituir avaliação clínica.
+export function detectarDorRecorrente(
+  entries: CheckinInput[],
+  janelaDias = 21,
+  minOcorrencias = 3
+): AlertaDorRecorrente[] {
+  const comDor = entries.filter((e) => e.temDor && e.regiaoDor && e.regiaoDor.trim());
+  if (comDor.length === 0) return [];
+
+  const maisRecente = comDor.reduce((max, e) => (e.data > max ? e.data : max), comDor[0].data);
+  const limiteISO = diaAnteriorN(maisRecente, janelaDias);
+
+  const porPalavra: Record<string, OcorrenciaDor[]> = {};
+  comDor
+    .filter((e) => e.data >= limiteISO)
+    .forEach((e) => {
+      const palavras = new Set(
+        (e.regiaoDor || "")
+          .split(/\s+/)
+          .map(normalizarPalavraDor)
+          .filter((w) => w.length >= 4 && !STOPWORDS_DOR.has(w))
+      );
+      palavras.forEach((p) => {
+        if (!porPalavra[p]) porPalavra[p] = [];
+        porPalavra[p].push({ data: e.data, regiaoDor: e.regiaoDor! });
+      });
+    });
+
+  return Object.entries(porPalavra)
+    .filter(([, ocorrencias]) => new Set(ocorrencias.map((o) => o.data)).size >= minOcorrencias)
+    .map(([termo, ocorrencias]) => ({
+      termo,
+      ocorrencias: ocorrencias.sort((a, b) => a.data.localeCompare(b.data)),
+    }))
+    .sort((a, b) => b.ocorrencias.length - a.ocorrencias.length);
+}
+
+function diaAnteriorN(dataISO: string, n: number): string {
+  const d = new Date(dataISO + "T12:00:00");
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 export interface SemanaMS {
