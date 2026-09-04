@@ -316,16 +316,22 @@ grant execute on function public.submit_checkin(
 ) to public;
 ```
 
+**Bloqueado por decisão de terceiros** (não é algo que a gente resolve com
+código — fica anotado pra não tentar de novo sem necessidade):
+
+- **Integração direta com Apple Health ou Strava** — Apple Health não tem
+  API na nuvem: só um app nativo de iPhone (não um site) consegue ler esses
+  dados, exigiria construir e manter um app à parte. Já a Strava, desde
+  meados de 2026, passou a **proibir explicitamente** que um app mostre os
+  dados de um atleta pra qualquer pessoa que não seja o próprio atleta —
+  incluindo o treinador — além de exigir assinatura paga pra acessar a API.
+  Isso inviabiliza o caso de uso do Recon (você acompanhar os atletas), não
+  é uma questão de esforço/custo de desenvolvimento. Se a política da
+  Strava mudar no futuro, vale reavaliar.
+
 **Combinado pra próxima etapa** (discutido e adiado de propósito, não
 esquecido):
 
-- **Reforçar a filosofia "dado + ação" no histórico e no resumo** (combinado
-  pra 05/09/2026): hoje, quando o atleta abre "ver meu histórico", ele vê o
-  gráfico mas não uma explicação de por que um dia específico gerou alerta.
-  Dá pra destacar visualmente o dia do alerta com uma legenda curta do que
-  aconteceu ali. E o resumo em .txt que você baixa (`baixarResumo` em
-  `PainelClient.tsx`) hoje só lista números — dava pra fechar com uma
-  recomendação, igual ao que já aparece na tela.
 - **Lembrete automático de check-in** — dá pra fazer sem custo nenhum
   usando notificação push do navegador (funciona até no iPhone, desde que
   o atleta "instale" o site na tela inicial). Não dá pra cronometrar
@@ -342,23 +348,46 @@ esquecido):
   Apple Health/Fitness etc.) — o atleta anexa um print, a IA lê os números
   (duração, distância...) e pré-preenche o formulário pra ele conferir e
   confirmar. Mais viável que integrar a API oficial do Strava (funciona com
-  qualquer app, não só Strava), mas tem custo pequeno por imagem processada
-  (menos de 1 centavo de dólar por print) — precisa de uma conta na
-  Anthropic com cobrança ativada.
+  qualquer app, não só Strava, e não esbarra na proibição da Strava porque
+  não usa a API deles — é só uma imagem), mas tem custo pequeno por imagem
+  processada (menos de 1 centavo de dólar por print) — precisa de uma
+  conta na Anthropic com cobrança ativada.
+- **Resumo semanal por e-mail pro treinador** — diferente do aviso de
+  alerta vermelho (que já existe), um e-mail automático semanal com a
+  situação geral do grupo. Usa a mesma infraestrutura da Resend já
+  configurada.
+- **Exportar todos os atletas numa planilha só** — hoje o relatório em PDF
+  é atleta por atleta; uma exportação geral (CSV/Excel) ajudaria pra
+  análise própria fora do app.
 - **Estresse percebido** ainda é só coletado, não entra nas fórmulas de
   alerta (assim como no protótipo original) — pendência antiga do briefing,
   nunca chegou a ser decidido como incorporar.
 
 ✅ **Já implementado além do briefing original** (pedidos durante o uso):
 - Termo de consentimento LGPD (tela de aceite + registro da data, aplicado
-  também no banco de dados) — texto em `lib/consentimento.ts`
+  também no banco de dados) — texto em `lib/consentimento.ts`, com variante
+  pro responsável legal quando o atleta é menor de idade
 - Check-in em etapas (nome → cadastro/termo → questionário), com busca de
   nome já cadastrado
 - Atleta lembrado no aparelho dele (não precisa digitar o nome de novo)
-- Atleta vê o próprio histórico em gráfico ("Ver meu histórico")
+- Atleta vê o próprio histórico em gráfico ("Ver meu histórico"), com os
+  dias de alerta destacados e legendados
 - Comparativo "sua carga nessa sessão está X% acima/abaixo da sua média"
+- Sequência de check-ins ("🔥 N dias seguidos") — reforço de adesão pro
+  atleta
+- Mais de uma sessão por dia, sem precisar repetir sono/fadiga/estresse na
+  segunda sessão
 - "Recado do treinador" — mural direcionável (um atleta específico ou
   todos), visível na tela de check-in
+- Aviso por e-mail pro treinador quando um check-in gera alerta vermelho
+  (opcional, via Resend)
+- Recomendações de recovery revisadas com base em meta-análises atuais,
+  com fonte citada pro treinador — não é mais texto genérico
+- Detecção de dor recorrente na mesma região (checagem de texto simples,
+  não diagnóstico) — alerta o treinador quando o mesmo local aparece 3+
+  vezes em 21 dias
+- Relatório do atleta em PDF com a identidade visual do Recon (marca
+  d'água, cor da marca, gráfico), substituindo o resumo em .txt simples
 - Painel: "quem ainda não fez check-in hoje", editar/apagar atleta
 - RLS reforçado: cadastro/check-in sem login só passam pelas funções
   `register_athlete`/`submit_checkin` (não dá pra pular o aceite do termo
@@ -373,6 +402,7 @@ lib/recon.ts              → todas as fórmulas (fonte única da verdade)
 lib/db-types.ts           → conversão entre banco de dados e as fórmulas
 lib/supabase/             → conexão com o Supabase (navegador e servidor)
 lib/ui.tsx                → estilos visuais compartilhados
+lib/pdfResumo.ts          → gera o relatório do atleta em PDF (marca própria)
 components/CheckinForm.tsx→ formulário de check-in do atleta
 components/PainelClient.tsx → painel do treinador
 app/checkin, app/login, app/painel → páginas do site

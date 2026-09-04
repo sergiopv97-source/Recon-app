@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -20,6 +20,7 @@ import {
 } from "@/lib/recon";
 import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
+import { gerarResumoPdf, carregarLogoBase64 } from "@/lib/pdfResumo";
 import Badge from "@/components/Badge";
 import HistoricoChart from "@/components/HistoricoChart";
 
@@ -217,64 +218,25 @@ export default function PainelClient() {
     }
   }
 
-  function baixarResumo(athleteId: string) {
+  // A logo só precisa ser carregada uma vez (fica em cache aqui) — cada PDF
+  // gerado reaproveita o mesmo base64, sem refazer o fetch toda hora.
+  const logoBase64Ref = useRef<string | null | undefined>(undefined);
+  const [gerandoPdf, setGerandoPdf] = useState<string | null>(null);
+
+  async function baixarResumo(athleteId: string) {
     const infoAtleta = athletes.find((r) => r.id === athleteId);
     if (!infoAtleta) return;
-    const serie = porAtleta[athleteId] || [];
-    const lesoesAtleta = injuries.filter((l) => l.athlete_id === athleteId);
-    const ms = computeMonotoniaStrain(serie);
-    const ultimoMS = ms[ms.length - 1];
-    const ultimo = serie[serie.length - 1];
-    const risco = riscoGeral(serie);
-
-    let texto = `RESUMO — ${infoAtleta.nome}\n`;
-    texto += `Gerado em ${new Date().toLocaleDateString("pt-BR")} por Sergio Vargas Fisioterapeuta\n\n`;
-
-    const dados = [infoAtleta.idade && `${infoAtleta.idade} anos`, infoAtleta.peso && `${infoAtleta.peso}kg`, infoAtleta.altura && `${infoAtleta.altura}cm`, infoAtleta.posicao]
-      .filter(Boolean)
-      .join(" · ");
-    if (dados) texto += `Dados: ${dados}\n`;
-    texto += `Lesões prévias (cadastro): ${infoAtleta.historico_lesoes || "nenhuma informada"}\n\n`;
-
-    texto += `RISCO GERAL ATUAL: ${risco ? risco.label.toUpperCase() : "sem dados suficientes"}\n`;
-    if (ultimo) {
-      texto += `Último check-in: ${formatarDataCurta(ultimo.data)} (${ultimo.diaSemana}) — ${ultimo.modalidade}/${ultimo.tipo}\n`;
-      texto += `  Alerta de carga: ${ultimo.alertaCarga?.label || "—"}\n`;
-      texto += `  Alerta clínico: ${ultimo.alertaClinico?.label || "—"}\n`;
-      texto += `  Padrão individual: ${ultimo.alertaIndividual?.label || "ainda sem histórico suficiente"}\n`;
+    setGerandoPdf(athleteId);
+    try {
+      if (logoBase64Ref.current === undefined) {
+        logoBase64Ref.current = await carregarLogoBase64();
+      }
+      const serie = porAtleta[athleteId] || [];
+      const lesoesAtleta = injuries.filter((l) => l.athlete_id === athleteId);
+      gerarResumoPdf({ atleta: infoAtleta, serie, lesoes: lesoesAtleta, logoBase64: logoBase64Ref.current });
+    } finally {
+      setGerandoPdf(null);
     }
-    if (ultimoMS && ultimoMS.monotonia !== null) {
-      texto += `  Monotonia (última semana): ${ultimoMS.monotonia.toFixed(2)} · Strain: ${Math.round(ultimoMS.strain!)} · ${ultimoMS.alerta?.label || ""}\n`;
-    }
-
-    texto += `\nHISTÓRICO RECENTE (últimos ${Math.min(10, serie.length)} registros):\n`;
-    serie
-      .slice(-10)
-      .reverse()
-      .forEach((e) => {
-        texto += `${formatarDataCurta(e.data)} — ${e.modalidade}/${e.tipo === "Outro" ? e.tipoOutro : e.tipo} — carga ${e.carga || 0} — sono ${e.sonoHoras}h — dor ${e.dor}${
-          e.temDor && e.regiaoDor ? ` (${e.regiaoDor})` : ""
-        } — carga:${e.alertaCarga?.label || "—"} · clínico:${e.alertaClinico?.label || "—"}\n`;
-      });
-
-    if (lesoesAtleta.length > 0) {
-      texto += `\nLESÕES E DOENÇAS REGISTRADAS:\n`;
-      lesoesAtleta.forEach((l) => {
-        texto += `${l.tipo_registro || "Lesão"} — ${formatarDataCurta(l.data)} — ${l.gravidade} — ${l.descricao}${
-          l.afastamento_dias ? ` (${l.afastamento_dias} dias de afastamento)` : ""
-        }\n`;
-      });
-    }
-
-    const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `resumo-${infoAtleta.nome.replace(/\s+/g, "_")}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 
   if (loading) {
@@ -695,9 +657,21 @@ export default function PainelClient() {
                 <button
                   type="button"
                   onClick={() => baixarResumo(athleteId)}
-                  style={{ marginBottom: 16, padding: "8px 14px", background: "#FFFFFF", border: "1px solid #297379", borderRadius: 6, color: "#297379", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                  disabled={gerandoPdf === athleteId}
+                  style={{
+                    marginBottom: 16,
+                    padding: "8px 14px",
+                    background: "#FFFFFF",
+                    border: "1px solid #297379",
+                    borderRadius: 6,
+                    color: "#297379",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: gerandoPdf === athleteId ? "wait" : "pointer",
+                    opacity: gerandoPdf === athleteId ? 0.6 : 1,
+                  }}
                 >
-                  ⬇ Baixar resumo do atleta (.txt)
+                  {gerandoPdf === athleteId ? "Gerando PDF…" : "⬇ Baixar relatório em PDF"}
                 </button>
 
                 {(() => {
