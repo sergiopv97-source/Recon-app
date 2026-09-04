@@ -161,6 +161,31 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Leitura de print de treino via IA** — no check-in, o atleta pode anexar
+um print do relógio/app (Garmin Connect, Strava, Apple Fitness etc.) e o
+site tenta preencher sozinho modalidade, duração/distância e data. Ele
+sempre confere e completa o resto (RPE, sono, fadiga, estresse, dor —
+nada disso vem de relógio nenhum, então o questionário continua
+existindo). É opcional: só liga se você configurar uma variável de
+ambiente na Vercel (`ANTHROPIC_API_KEY`), usando uma conta na Anthropic
+(a empresa que faz o Claude). Passo a passo:
+1. Acesse **console.anthropic.com** e crie uma conta (e-mail/senha ou
+   login do Google).
+2. Em **"Billing"**, cadastre um cartão de crédito (cobrança por uso, sem
+   plano fixo).
+3. **Recomendado**: em **"Limits"**, configure um limite de gasto mensal
+   baixo (ex: US$ 5-10) — pelo volume do piloto, o gasto real fica bem
+   abaixo de US$ 1/mês, mas assim você nunca tem surpresa.
+4. Em **"API Keys" → "Create Key"**, dê um nome (ex: `recon-print-treino`)
+   e copie a chave gerada (começa com `sk-ant-...`).
+5. Na Vercel, em **Project Settings → Environment Variables**, adicione
+   `ANTHROPIC_API_KEY` com essa chave.
+6. Redeploy o site.
+Sem essa variável configurada, o botão de anexar print aparece mas avisa
+que a função ainda não está disponível — o resto do check-in funciona
+normal. Usa o modelo Claude Haiku 4.5 (o mais barato) — cada print
+processado custa uma fração de centavo de dólar.
+
 ✅ **Implementado nesta rodada** (os 3 itens combinados):
 
 - **Aviso por e-mail em alerta vermelho** — sempre que um check-in gera um
@@ -344,14 +369,6 @@ esquecido):
 - **PIN pessoal por atleta** — hoje qualquer um pode preencher em nome de
   outro atleta (não tem verificação de identidade real, só o nome). Um
   código de 4 dígitos por atleta resolveria isso.
-- **Leitura automática de print de treino via IA** (Strava, Garmin Connect,
-  Apple Health/Fitness etc.) — o atleta anexa um print, a IA lê os números
-  (duração, distância...) e pré-preenche o formulário pra ele conferir e
-  confirmar. Mais viável que integrar a API oficial do Strava (funciona com
-  qualquer app, não só Strava, e não esbarra na proibição da Strava porque
-  não usa a API deles — é só uma imagem), mas tem custo pequeno por imagem
-  processada (menos de 1 centavo de dólar por print) — precisa de uma
-  conta na Anthropic com cobrança ativada.
 - **Resumo semanal por e-mail pro treinador** — diferente do aviso de
   alerta vermelho (que já existe), um e-mail automático semanal com a
   situação geral do grupo. Usa a mesma infraestrutura da Resend já
@@ -388,6 +405,8 @@ esquecido):
   vezes em 21 dias
 - Relatório do atleta em PDF com a identidade visual do Recon (marca
   d'água, cor da marca, gráfico), substituindo o resumo em .txt simples
+- Leitura de print de treino via IA (opcional, precisa de conta na
+  Anthropic) — pré-preenche modalidade, duração/distância e data
 - Painel: "quem ainda não fez check-in hoje", editar/apagar atleta
 - RLS reforçado: cadastro/check-in sem login só passam pelas funções
   `register_athlete`/`submit_checkin` (não dá pra pular o aceite do termo

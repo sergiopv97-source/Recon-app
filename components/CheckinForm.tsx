@@ -83,6 +83,13 @@ export default function CheckinForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [recentRows, setRecentRows] = useState<CheckinRow[]>([]);
 
+  // Leitura de print de treino (Garmin/Strava/Apple Fitness) via IA —
+  // preenche só os campos objetivos (modalidade, tempo/distância, data);
+  // o atleta sempre confere antes de enviar, nunca é preenchido às cegas.
+  const [lendoPrint, setLendoPrint] = useState(false);
+  const [printMsg, setPrintMsg] = useState("");
+  const [printErro, setPrintErro] = useState("");
+
   // Fluxo em etapas: primeiro a pessoa se identifica (nome), só depois vê o
   // questionário do dia — evita a sensação de "formulário gigante de cara"
   // e deixa claro que a identificação é uma etapa própria.
@@ -262,6 +269,48 @@ export default function CheckinForm() {
     const diffPct = Math.round(((ultimoAtleta.carga - media) / media) * 100);
     return { diffPct, media: Math.round(media), carga: ultimoAtleta.carga };
   }, [serieRecente, ultimoAtleta]);
+
+  // Manda o print pra API ler e devolve os campos objetivos já preenchidos
+  // (modalidade, tipo, distância/tempo ou minutos, data) — o atleta sempre
+  // confere e pode corrigir antes de enviar; nada é salvo automaticamente.
+  async function lerPrint(file: File) {
+    setLendoPrint(true);
+    setPrintErro("");
+    setPrintMsg("");
+    try {
+      const formDataPrint = new FormData();
+      formDataPrint.append("print", file);
+      const resp = await fetch("/api/ler-print-treino", { method: "POST", body: formDataPrint });
+      const json = await resp.json();
+      if (!resp.ok || json.erro) {
+        setPrintErro(json.erro || "Não consegui ler esse print. Preencha manualmente abaixo.");
+        return;
+      }
+      const dados = json.dados ?? {};
+      const modalidadeValida = MODALIDADES.includes(dados.modalidade) ? (dados.modalidade as Modalidade) : null;
+      const tipoValido = modalidadeValida && TIPOS_POR_MODALIDADE[modalidadeValida].includes(dados.tipo) ? dados.tipo : null;
+      const dataValida = typeof dados.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dados.data) ? dados.data : null;
+
+      setForm((f) => ({
+        ...f,
+        modalidade: modalidadeValida ?? f.modalidade,
+        tipo: tipoValido ?? (modalidadeValida ? TIPOS_POR_MODALIDADE[modalidadeValida][0] : f.tipo),
+        distanciaKm: typeof dados.distanciaKm === "number" ? String(dados.distanciaKm) : f.distanciaKm,
+        tempoMin: typeof dados.tempoMin === "number" ? String(dados.tempoMin) : f.tempoMin,
+        minutos: typeof dados.minutos === "number" ? String(dados.minutos) : f.minutos,
+        data: dataValida ?? f.data,
+      }));
+
+      const partes: string[] = ["Dados extraídos do print — confira e complete abaixo antes de enviar."];
+      if (!modalidadeValida) partes.push("Não deu pra identificar a modalidade com certeza, escolha manualmente.");
+      if (dados.observacao) partes.push(String(dados.observacao));
+      setPrintMsg(partes.join(" "));
+    } catch {
+      setPrintErro("Não consegui ler esse print. Preencha manualmente abaixo.");
+    } finally {
+      setLendoPrint(false);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -667,6 +716,28 @@ export default function CheckinForm() {
           ))}
         </div>
       )}
+
+      <div style={{ ...cardStyle, marginBottom: 18 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: "#14201F" }}>📷 Anexar print do treino (opcional)</label>
+        <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4, marginBottom: 8 }}>
+          Print do Garmin, Strava, Apple Fitness etc. — a gente tenta preencher modalidade, duração/distância e data
+          automaticamente. Confira sempre antes de enviar; sono, esforço e o resto continuam sendo só seus.
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          disabled={lendoPrint}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) lerPrint(file);
+            e.target.value = "";
+          }}
+          style={{ fontSize: 13 }}
+        />
+        {lendoPrint && <div style={{ fontSize: 12.5, color: "#5B6664", marginTop: 6 }}>Lendo o print…</div>}
+        {printMsg && <div style={{ fontSize: 12.5, color: "#297379", marginTop: 6 }}>{printMsg}</div>}
+        {printErro && <div style={{ fontSize: 12.5, color: "#B23A32", marginTop: 6 }}>{printErro}</div>}
+      </div>
 
       <div style={{ marginBottom: 18 }}>
         <label style={{ fontSize: 13, color: "#5B6664" }}>Data do check-in</label>
