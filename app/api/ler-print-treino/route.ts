@@ -63,13 +63,17 @@ export async function POST(req: Request) {
         "minutos (duração total da sessão) e deixe distanciaKm e tempoMin null. Se o print mostrar uma atividade " +
         'genérica (ex: "Cardio", "Outro", sem dar pra saber o esporte exato), deixe modalidade e tipo null e explique ' +
         'em "observacao" — não adivinhe o esporte. A data provável é o ano atual, a menos que o print diga outro ano. ' +
-        "Se não conseguir ler algum campo com confiança, deixe null — nunca invente valor.",
+        "A imagem tanto pode ser um print de tela (nítido, texto digital) quanto uma foto tirada da tela física do " +
+        "relógio (pode ter reflexo, ângulo, iluminação ruim) — nos dois casos, leia o que der pra ler com confiança. " +
+        "Se a foto estiver borrada, com reflexo forte ou ilegível a ponto de não dar pra confiar no número, deixe o " +
+        "campo null em vez de arriscar um valor errado, e diga em \"observacao\" que a imagem não ficou clara o " +
+        "suficiente. Se não conseguir ler algum campo com confiança, deixe null — nunca invente valor.",
       messages: [
         {
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            { type: "text", text: "Extraia os dados desse print de treino." },
+            { type: "text", text: "Extraia os dados desse print ou foto de treino." },
           ],
         },
       ],

@@ -718,10 +718,11 @@ export default function CheckinForm() {
       )}
 
       <div style={{ ...cardStyle, marginBottom: 18 }}>
-        <label style={{ fontSize: 13, fontWeight: 600, color: "#14201F" }}>📷 Anexar print do treino (opcional)</label>
+        <label style={{ fontSize: 13, fontWeight: 600, color: "#14201F" }}>📷 Anexar print ou foto do treino (opcional)</label>
         <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4, marginBottom: 8 }}>
-          Print do Garmin, Strava, Apple Fitness etc. — a gente tenta preencher modalidade, duração/distância e data
-          automaticamente. Confira sempre antes de enviar; sono, esforço e o resto continuam sendo só seus.
+          Print do Garmin, Strava, Apple Fitness etc., ou até uma foto da tela do relógio — a gente tenta preencher
+          modalidade, duração/distância e data automaticamente (foto do relógio funciona, mas print costuma sair mais
+          certo, sem reflexo). Confira sempre antes de enviar; sono, esforço e o resto continuam sendo só seus.
         </div>
         <input
           type="file"
