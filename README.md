@@ -5,6 +5,19 @@ recuperação dos seus atletas/pacientes. Os atletas preenchem um check-in
 rápido depois de cada sessão; você acompanha tudo num painel com alertas
 automáticos, gráficos e histórico.
 
+### Filosofia do projeto (não perder isso de vista)
+
+O Recon não é sobre *controlar* a carga do atleta — é sobre, a partir da
+carga, descobrir qual a melhor estratégia de recuperação pra ele. Um
+gráfico bonito sem nenhuma indicação prática do que fazer é só decoração.
+Por isso, qualquer número ou alerta que o app mostra (pro atleta ou pro
+treinador) deve vir acompanhado de uma **recomendação de ação**, não só do
+dado cru — é essa combinação (dado + o que fazer com o dado, com base em
+evidência) que diferencia o Recon de painéis genéricos de monitoramento
+que só coletam e exibem informação. Ao adicionar qualquer funcionalidade
+nova, vale perguntar: "isso dá uma ação clara pro atleta ou pro
+treinador, ou é só mais um número na tela?"
+
 Este documento é um passo a passo **completo**, pensado pra quem nunca
 publicou um site antes. Vai levar uns 30–40 minutos na primeira vez. Depois
 disso, qualquer atualização é automática.
