@@ -148,24 +148,46 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
-Vindo direto do briefing original — ainda não estão nesta versão:
+**Combinado pra próxima etapa** (discutido e adiado de propósito, não
+esquecido):
 
-- **Login por WhatsApp/link mágico pros atletas** — evolução futura, não
-  necessária pro piloto atual (hoje é só escolher o nome na lista).
-- **Importação automática do Strava / apps de treino via IA** — precisa de
-  integração com a API do Strava (ou upload manual de arquivo pra leitura
-  por IA). Dá pra planejar como próxima etapa.
-- **Lembrete automático por WhatsApp** pra preencher o RPE 1h–1h30 após a
-  sessão (hoje é só um aviso fixo na tela).
+- **Lembrete automático de check-in** — dá pra fazer sem custo nenhum
+  usando notificação push do navegador (funciona até no iPhone, desde que
+  o atleta "instale" o site na tela inicial). Não dá pra cronometrar
+  exatamente "1h-1h30 pós-sessão" (o site só sabe que houve sessão quando o
+  atleta preenche o check-in), mas dá pra mandar um aviso em horário(s)
+  fixo(s) do dia pra quem ainda não preencheu — usando a mesma lista que já
+  aparece no painel ("Check-in de hoje"). Envolve configurar um app
+  instalável (PWA) + um aviso agendado (cron) — é mais trabalhoso que o
+  resto, por isso ficou pra depois.
+- **PIN pessoal por atleta** — hoje qualquer um pode preencher em nome de
+  outro atleta (não tem verificação de identidade real, só o nome). Um
+  código de 4 dígitos por atleta resolveria isso.
+- **Leitura automática de print de treino via IA** (Strava, Garmin Connect,
+  Apple Health/Fitness etc.) — o atleta anexa um print, a IA lê os números
+  (duração, distância...) e pré-preenche o formulário pra ele conferir e
+  confirmar. Mais viável que integrar a API oficial do Strava (funciona com
+  qualquer app, não só Strava), mas tem custo pequeno por imagem processada
+  (menos de 1 centavo de dólar por print) — precisa de uma conta na
+  Anthropic com cobrança ativada.
 - **Estresse percebido** ainda é só coletado, não entra nas fórmulas de
-  alerta (assim como no protótipo original).
+  alerta (assim como no protótipo original) — pendência antiga do briefing,
+  nunca chegou a ser decidido como incorporar.
 
-✅ **Termo de consentimento LGPD** — já implementado. Todo atleta novo vê o
-termo completo e precisa marcar "li e concordo" antes do primeiro check-in
-ser aceito (a regra é aplicada no próprio banco de dados, não só na tela).
-A data do aceite aparece no painel do treinador, na ficha de cada atleta.
-Texto em `lib/consentimento.ts` — se precisar mudar algo nele (ex: trocar o
-contato), é só editar esse arquivo.
+✅ **Já implementado além do briefing original** (pedidos durante o uso):
+- Termo de consentimento LGPD (tela de aceite + registro da data, aplicado
+  também no banco de dados) — texto em `lib/consentimento.ts`
+- Check-in em etapas (nome → cadastro/termo → questionário), com busca de
+  nome já cadastrado
+- Atleta lembrado no aparelho dele (não precisa digitar o nome de novo)
+- Atleta vê o próprio histórico em gráfico ("Ver meu histórico")
+- Comparativo "sua carga nessa sessão está X% acima/abaixo da sua média"
+- "Recado do treinador" — mural direcionável (um atleta específico ou
+  todos), visível na tela de check-in
+- Painel: "quem ainda não fez check-in hoje", editar/apagar atleta
+- RLS reforçado: cadastro/check-in sem login só passam pelas funções
+  `register_athlete`/`submit_checkin` (não dá pra pular o aceite do termo
+  indo direto na API)
 
 ---
 
