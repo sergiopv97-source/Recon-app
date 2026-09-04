@@ -25,16 +25,12 @@ create table if not exists public.athletes (
 
 alter table public.athletes enable row level security;
 
--- Qualquer pessoa com o link (mesmo sem login) pode cadastrar um novo atleta
--- na primeira vez que preencher o check-in (igual ao protótipo). Sem "to"
--- aqui de propósito (vale pra PUBLIC) — a chave pública nova do Supabase
--- ("publishable key") nem sempre resolve pro papel "anon" exatamente, então
--- restringir a policy a "anon, authenticated" pode bloquear quem não tem
--- login. A real proteção dos dados sensíveis está nas policies de SELECT
--- abaixo, que continuam exigindo "authenticated" de verdade.
-create policy "athletes: qualquer um pode cadastrar" on public.athletes
-  for insert
-  with check (true);
+-- Cadastro de atleta sem login passa SÓ pela função register_athlete (mais
+-- abaixo), nunca por um INSERT direto na tabela — assim a exigência do
+-- termo de consentimento (LGPD) não tem como ser pulada por quem chamar a
+-- API diretamente (sem passar pelo site). Por isso NÃO existe policy de
+-- INSERT pra anon/public aqui: sem policy = ninguém sem login insere direto,
+-- só a função (que roda com privilégio elevado e ignora RLS).
 
 -- Só o treinador logado enxerga os dados completos do cadastro (idade, peso,
 -- lesões prévias etc). Atletas sem login NÃO leem esta tabela diretamente —
@@ -46,6 +42,11 @@ create policy "athletes: treinador le tudo" on public.athletes
 
 create policy "athletes: treinador atualiza" on public.athletes
   for update
+  to authenticated
+  using (true);
+
+create policy "athletes: treinador apaga" on public.athletes
+  for delete
   to authenticated
   using (true);
 
@@ -86,16 +87,9 @@ create table if not exists public.checkins (
 
 alter table public.checkins enable row level security;
 
--- Qualquer um com o link pode enviar (ou reenviar, no mesmo dia) o próprio
--- check-in — não existe login de atleta nesta versão.
-create policy "checkins: qualquer um pode enviar" on public.checkins
-  for insert
-  with check (true);
-
-create policy "checkins: qualquer um pode corrigir o mesmo dia" on public.checkins
-  for update
-  using (true)
-  with check (true);
+-- Assim como em athletes, o envio de check-in sem login passa SÓ pela
+-- função submit_checkin (mais abaixo) — não existe policy de INSERT/UPDATE
+-- pra anon/public aqui de propósito.
 
 -- IMPORTANTE: não existe policy de "select" para anon/authenticated-atleta.
 -- Isso significa que, por padrão, ninguém sem estar logado como treinador

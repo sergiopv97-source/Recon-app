@@ -2,14 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { createClient } from "@/lib/supabase/client";
 import {
   computeSeries,
   computeMonotoniaStrain,
   riscoGeral,
   recomendacoes,
-  rotuloPeriodo,
   formatarDataCurta,
   paceMinKm,
   ordemChave,
@@ -22,6 +20,7 @@ import {
 import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
 import Badge from "@/components/Badge";
+import HistoricoChart from "@/components/HistoricoChart";
 
 const emptyLesaoForm = {
   tipoRegistro: "Lesão" as "Lesão" | "Doença",
@@ -42,6 +41,8 @@ export default function PainelClient() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [filtroRisco, setFiltroRisco] = useState<"todos" | "danger" | "warn" | "ok">("todos");
   const [lesaoForm, setLesaoForm] = useState(emptyLesaoForm);
+  const [editando, setEditando] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ idade: "", peso: "", altura: "", posicao: "", historicoLesoes: "" });
 
   async function load() {
     setLoading(true);
@@ -130,6 +131,11 @@ export default function PainelClient() {
       });
   }, [porAtleta, filtroRisco, athletes]);
 
+  const semCheckinHoje = useMemo(() => {
+    const hoje = new Date().toISOString().slice(0, 10);
+    return athletes.filter((a) => !checkins.some((c) => c.athlete_id === a.id && c.data === hoje)).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [athletes, checkins]);
+
   async function registrarLesao(athleteId: string, ultimoStatus: CheckinComputed | undefined) {
     if (!lesaoForm.descricao.trim()) return;
     const { error } = await supabase.from("injuries").insert({
@@ -144,6 +150,44 @@ export default function PainelClient() {
     });
     if (!error) {
       setLesaoForm(emptyLesaoForm);
+      load();
+    }
+  }
+
+  function iniciarEdicao(infoAtleta: AthleteRow) {
+    setEditando(infoAtleta.id);
+    setEditForm({
+      idade: infoAtleta.idade?.toString() ?? "",
+      peso: infoAtleta.peso?.toString() ?? "",
+      altura: infoAtleta.altura?.toString() ?? "",
+      posicao: infoAtleta.posicao ?? "",
+      historicoLesoes: infoAtleta.historico_lesoes ?? "",
+    });
+  }
+
+  async function salvarEdicao(athleteId: string) {
+    const { error } = await supabase
+      .from("athletes")
+      .update({
+        idade: editForm.idade ? Number(editForm.idade) : null,
+        peso: editForm.peso ? Number(editForm.peso) : null,
+        altura: editForm.altura ? Number(editForm.altura) : null,
+        posicao: editForm.posicao.trim() || null,
+        historico_lesoes: editForm.historicoLesoes.trim() || null,
+      })
+      .eq("id", athleteId);
+    if (!error) {
+      setEditando(null);
+      load();
+    }
+  }
+
+  async function apagarAtleta(athleteId: string, nome: string) {
+    const confirmado = window.confirm(`Apagar ${nome}? Isso remove também todos os check-ins e lesões registrados dele. Não dá pra desfazer.`);
+    if (!confirmado) return;
+    const { error } = await supabase.from("athletes").delete().eq("id", athleteId);
+    if (!error) {
+      setExpanded(null);
       load();
     }
   }
@@ -266,6 +310,31 @@ export default function PainelClient() {
         ))}
       </div>
 
+      {athletes.length > 0 && (
+        <div style={{ ...cardStyle, marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 8 }}>
+            Check-in de hoje ({new Date().toLocaleDateString("pt-BR")})
+          </div>
+          {semCheckinHoje.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#2F7D52" }}>✓ Todos os atletas já preencheram hoje.</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 12.5, color: "#5B6664", marginBottom: 6 }}>Ainda não preencheram:</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {semCheckinHoje.map((a) => (
+                  <span
+                    key={a.id}
+                    style={{ fontSize: 12.5, color: "#B9812E", background: "#FBF3E7", border: "1px solid #EED9B8", borderRadius: 20, padding: "4px 10px" }}
+                  >
+                    {a.nome}
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {Object.keys(porAtleta).length === 0 && (
         <div style={{ color: "#5B6664", textAlign: "center", padding: 40 }}>
           Ainda não há check-ins. Assim que um atleta enviar o questionário, ele aparece aqui automaticamente.
@@ -324,24 +393,102 @@ export default function PainelClient() {
             {isOpen && (
               <div style={{ padding: "4px 16px 16px" }}>
                 <div style={{ marginBottom: 16, background: "#F7F8F7", border: "1px solid #DCE3E1", borderRadius: 8, padding: "12px 14px" }}>
-                  {(infoAtleta.idade || infoAtleta.peso || infoAtleta.altura || infoAtleta.posicao) && (
-                    <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
-                      {[infoAtleta.idade && `${infoAtleta.idade} anos`, infoAtleta.peso && `${infoAtleta.peso} kg`, infoAtleta.altura && `${infoAtleta.altura} cm`, infoAtleta.posicao]
-                        .filter(Boolean)
-                        .join(" · ")}
+                  {editando === athleteId ? (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                        <input
+                          style={{ ...inputStyle, marginTop: 0 }}
+                          type="number"
+                          min="0"
+                          placeholder="Idade"
+                          value={editForm.idade}
+                          onChange={(e) => setEditForm({ ...editForm, idade: e.target.value })}
+                        />
+                        <input
+                          style={{ ...inputStyle, marginTop: 0 }}
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="Peso (kg)"
+                          value={editForm.peso}
+                          onChange={(e) => setEditForm({ ...editForm, peso: e.target.value })}
+                        />
+                        <input
+                          style={{ ...inputStyle, marginTop: 0 }}
+                          type="number"
+                          min="0"
+                          placeholder="Altura (cm)"
+                          value={editForm.altura}
+                          onChange={(e) => setEditForm({ ...editForm, altura: e.target.value })}
+                        />
+                      </div>
+                      <input
+                        style={{ ...inputStyle, marginTop: 0, marginBottom: 8 }}
+                        placeholder="Posição / prova principal"
+                        value={editForm.posicao}
+                        onChange={(e) => setEditForm({ ...editForm, posicao: e.target.value })}
+                      />
+                      <input
+                        style={{ ...inputStyle, marginTop: 0, marginBottom: 8 }}
+                        placeholder="Lesões prévias"
+                        value={editForm.historicoLesoes}
+                        onChange={(e) => setEditForm({ ...editForm, historicoLesoes: e.target.value })}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => salvarEdicao(athleteId)}
+                          style={{ padding: "8px 14px", background: "#297379", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditando(null)}
+                          style={{ padding: "8px 14px", background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 6, color: "#5B6664", fontSize: 13, cursor: "pointer" }}
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      {(infoAtleta.idade || infoAtleta.peso || infoAtleta.altura || infoAtleta.posicao) && (
+                        <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
+                          {[infoAtleta.idade && `${infoAtleta.idade} anos`, infoAtleta.peso && `${infoAtleta.peso} kg`, infoAtleta.altura && `${infoAtleta.altura} cm`, infoAtleta.posicao]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
+                        Lesões prévias (cadastro): {infoAtleta.historico_lesoes || "nenhuma informada"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 10 }}>
+                        Termo de consentimento (LGPD):{" "}
+                        {infoAtleta.consentimento_aceito_em ? (
+                          <span style={{ color: "#2F7D52" }}>aceito em {formatarDataCurta(infoAtleta.consentimento_aceito_em.slice(0, 10))}</span>
+                        ) : (
+                          <span style={{ color: "#B23A32" }}>ainda não aceito</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 14 }}>
+                        <button
+                          type="button"
+                          onClick={() => iniciarEdicao(infoAtleta)}
+                          style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                        >
+                          Editar cadastro
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => apagarAtleta(athleteId, infoAtleta.nome)}
+                          style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                        >
+                          Apagar atleta
+                        </button>
+                      </div>
+                    </>
                   )}
-                  <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
-                    Lesões prévias (cadastro): {infoAtleta.historico_lesoes || "nenhuma informada"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
-                    Termo de consentimento (LGPD):{" "}
-                    {infoAtleta.consentimento_aceito_em ? (
-                      <span style={{ color: "#2F7D52" }}>aceito em {formatarDataCurta(infoAtleta.consentimento_aceito_em.slice(0, 10))}</span>
-                    ) : (
-                      <span style={{ color: "#B23A32" }}>ainda não aceito</span>
-                    )}
-                  </div>
 
                   {lesoesAtleta.length > 0 && (
                     <div style={{ marginBottom: 10 }}>
@@ -469,31 +616,10 @@ export default function PainelClient() {
                     </div>
                   )}
 
-                {serie.length > 1 && (
-                  <div style={{ height: 160, marginBottom: 16 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={serie.map((e) => ({ x: rotuloPeriodo(e), carga: e.carga, indice: e.indice }))}>
-                        <CartesianGrid stroke="#E7ECEA" strokeDasharray="3 3" />
-                        <XAxis dataKey="x" stroke="#5B6664" fontSize={11} />
-                        <YAxis stroke="#5B6664" fontSize={11} />
-                        <Tooltip contentStyle={{ background: "#FFFFFF", border: "1px solid #DCE3E1", fontSize: 12 }} />
-                        <Line type="monotone" dataKey="carga" stroke="#297379" strokeWidth={2} dot={false} name="Carga sRPE" />
-                        <Line type="monotone" dataKey="indice" stroke="#2C7FB0" strokeWidth={2} dot={false} name="Índice recuperação" />
-                        {lesoesAtleta
-                          .filter((l) => serie.some((e) => rotuloPeriodo(e) === rotuloPeriodo({ data: l.data })))
-                          .map((l) => (
-                            <ReferenceLine
-                              key={l.id}
-                              x={rotuloPeriodo({ data: l.data })}
-                              stroke="#B23A32"
-                              strokeDasharray="4 2"
-                              label={{ value: l.tipo_registro === "Doença" ? "doença" : "lesão", position: "top", fill: "#B23A32", fontSize: 10 }}
-                            />
-                          ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+                <HistoricoChart
+                  serie={serie}
+                  marcadores={lesoesAtleta.map((l) => ({ id: l.id, data: l.data, label: l.tipo_registro === "Doença" ? "doença" : "lesão" }))}
+                />
 
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

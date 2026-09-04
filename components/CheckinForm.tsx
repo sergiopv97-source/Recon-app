@@ -20,6 +20,27 @@ import { inputStyle, primaryButtonStyle, cardStyle } from "@/lib/ui";
 import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
 import TermoConsentimento from "@/components/TermoConsentimento";
+import HistoricoChart from "@/components/HistoricoChart";
+
+// Chave usada pra lembrar, só neste aparelho, quem foi o último atleta a se
+// identificar — assim ele não precisa digitar o nome de novo toda vez.
+const ATLETA_LOCAL_KEY = "recon:atletaId";
+
+function salvarAtletaLocal(id: string) {
+  try {
+    localStorage.setItem(ATLETA_LOCAL_KEY, id);
+  } catch {
+    // modo privado / localStorage bloqueado — sem problema, só não lembra
+  }
+}
+
+function limparAtletaLocal() {
+  try {
+    localStorage.removeItem(ATLETA_LOCAL_KEY);
+  } catch {
+    // idem
+  }
+}
 
 const emptyForm = {
   atleta: "",
@@ -63,11 +84,23 @@ export default function CheckinForm() {
   // e deixa claro que a identificação é uma etapa própria.
   const [etapa, setEtapa] = useState<"nome" | "cadastro" | "checkin">("nome");
   const [buscaNome, setBuscaNome] = useState("");
+  const [verHistorico, setVerHistorico] = useState(false);
 
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.from("athletes_roster").select("id, nome").order("nome", { ascending: true });
-      if (!error && data) setRoster(data);
+      if (!error && data) {
+        setRoster(data);
+        try {
+          const idLembrado = localStorage.getItem(ATLETA_LOCAL_KEY);
+          if (idLembrado && data.some((a) => a.id === idLembrado)) {
+            setForm((f) => ({ ...f, atleta: idLembrado }));
+            setEtapa("checkin");
+          }
+        } catch {
+          // modo privado / localStorage bloqueado — sem problema, só não lembra
+        }
+      }
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,6 +134,7 @@ export default function CheckinForm() {
     setForm({ ...form, atleta: a.id });
     setBuscaNome(a.nome);
     setEtapa("checkin");
+    salvarAtletaLocal(a.id);
   }
 
   function iniciarCadastro() {
@@ -112,6 +146,8 @@ export default function CheckinForm() {
     setForm(emptyForm);
     setBuscaNome("");
     setEtapa("nome");
+    setVerHistorico(false);
+    limparAtletaLocal();
   }
 
   const nomeAtletaSelecionado = useMemo(() => {
@@ -167,6 +203,7 @@ export default function CheckinForm() {
         if (insertErr || !novoAtletaRow) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
         athleteId = novoAtletaRow.id;
         setRoster((prev) => [...prev, novoAtletaRow].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+        salvarAtletaLocal(athleteId);
       }
 
       if (!athleteId) {
@@ -364,6 +401,23 @@ export default function CheckinForm() {
           trocar
         </button>
       </div>
+
+      {serieRecente.length > 1 && (
+        <div style={{ marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={() => setVerHistorico((v) => !v)}
+            style={{ background: "none", border: "none", color: "#297379", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0 }}
+          >
+            {verHistorico ? "Ocultar meu histórico ▲" : "Ver meu histórico ▼"}
+          </button>
+          {verHistorico && (
+            <div style={{ marginTop: 10 }}>
+              <HistoricoChart serie={serieRecente} />
+            </div>
+          )}
+        </div>
+      )}
 
       {recsAutocuidado.length > 0 && (
         <div style={{ ...cardStyle, marginBottom: 22 }}>
