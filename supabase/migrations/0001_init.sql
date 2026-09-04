@@ -110,12 +110,13 @@ create policy "checkins: treinador apaga" on public.checkins
 -- -----------------------------------------------------------------------------
 -- Tabela: recados (mural do treinador pros atletas)
 -- -----------------------------------------------------------------------------
--- Um recado simples que o treinador publica e todo mundo que abrir o
--- check-in enxerga (o mais recente). Não é um chat — só uma via, do
--- treinador pro atleta.
+-- Um recado simples que o treinador publica. Se athlete_id for nulo, vale
+-- pra todo mundo; se apontar pra um atleta, só ele enxerga. Não é um chat —
+-- só uma via, do treinador pro atleta.
 create table if not exists public.recados (
   id uuid primary key default gen_random_uuid(),
   mensagem text not null,
+  athlete_id uuid references public.athletes (id) on delete cascade,
   criado_em timestamptz not null default now()
 );
 

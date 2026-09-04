@@ -85,15 +85,35 @@ export default function CheckinForm() {
   const [etapa, setEtapa] = useState<"nome" | "cadastro" | "checkin">("nome");
   const [buscaNome, setBuscaNome] = useState("");
   const [verHistorico, setVerHistorico] = useState(false);
-  const [recado, setRecado] = useState<RecadoRow | null>(null);
+  const [recadoGeral, setRecadoGeral] = useState<RecadoRow | null>(null);
+  const [recadoPessoal, setRecadoPessoal] = useState<RecadoRow | null>(null);
 
+  // Recado pra todo mundo (athlete_id nulo) — dá pra buscar antes de saber
+  // quem é o atleta.
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("recados").select("*").order("criado_em", { ascending: false }).limit(1);
-      if (!error && data && data[0]) setRecado(data[0] as RecadoRow);
+      const { data, error } = await supabase.from("recados").select("*").is("athlete_id", null).order("criado_em", { ascending: false }).limit(1);
+      if (!error && data && data[0]) setRecadoGeral(data[0] as RecadoRow);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Recado só pra esse atleta específico — busca de novo assim que ele se
+  // identifica.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!form.atleta || form.atleta === "__novo__") {
+        if (!cancelled) setRecadoPessoal(null);
+        return;
+      }
+      const { data, error } = await supabase.from("recados").select("*").eq("athlete_id", form.atleta).order("criado_em", { ascending: false }).limit(1);
+      if (!cancelled && !error && data) setRecadoPessoal(data[0] as RecadoRow | undefined ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.atleta, supabase]);
 
   useEffect(() => {
     (async () => {
@@ -274,7 +294,24 @@ export default function CheckinForm() {
 
   return (
     <form onSubmit={submit}>
-      {recado && (
+      {recadoPessoal && (
+        <div
+          style={{
+            background: "#FBF3E7",
+            border: "1px solid #EED9B8",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 14,
+            fontSize: 13,
+            color: "#14201F",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#B9812E", letterSpacing: 0.4, marginBottom: 2 }}>RECADO PRA VOCÊ</div>
+          {recadoPessoal.mensagem}
+        </div>
+      )}
+
+      {recadoGeral && (
         <div
           style={{
             background: "#FBF3E7",
@@ -287,7 +324,7 @@ export default function CheckinForm() {
           }}
         >
           <div style={{ fontSize: 11, fontWeight: 700, color: "#B9812E", letterSpacing: 0.4, marginBottom: 2 }}>RECADO DO TREINADOR</div>
-          {recado.mensagem}
+          {recadoGeral.mensagem}
         </div>
       )}
 

@@ -43,8 +43,9 @@ export default function PainelClient() {
   const [lesaoForm, setLesaoForm] = useState(emptyLesaoForm);
   const [editando, setEditando] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ idade: "", peso: "", altura: "", posicao: "", historicoLesoes: "" });
-  const [recado, setRecado] = useState<RecadoRow | null>(null);
+  const [recados, setRecados] = useState<RecadoRow[]>([]);
   const [novoRecado, setNovoRecado] = useState("");
+  const [destinatarioRecado, setDestinatarioRecado] = useState(""); // "" = todos
   const [salvandoRecado, setSalvandoRecado] = useState(false);
 
   async function load() {
@@ -53,12 +54,12 @@ export default function PainelClient() {
       supabase.from("athletes").select("*").order("nome", { ascending: true }),
       supabase.from("checkins").select("*"),
       supabase.from("injuries").select("*"),
-      supabase.from("recados").select("*").order("criado_em", { ascending: false }).limit(1),
+      supabase.from("recados").select("*").order("criado_em", { ascending: false }),
     ]);
     if (a.data) setAthletes(a.data as AthleteRow[]);
     if (c.data) setCheckins(c.data as CheckinRow[]);
     if (l.data) setInjuries(l.data as InjuryRow[]);
-    setRecado((r.data?.[0] as RecadoRow) ?? null);
+    if (r.data) setRecados(r.data as RecadoRow[]);
     setLoading(false);
   }
 
@@ -72,20 +73,18 @@ export default function PainelClient() {
     const mensagem = novoRecado.trim();
     if (!mensagem) return;
     setSalvandoRecado(true);
-    const { error } = await supabase.from("recados").insert({ mensagem });
+    const { error } = await supabase.from("recados").insert({ mensagem, athlete_id: destinatarioRecado || null });
     setSalvandoRecado(false);
     if (!error) {
       setNovoRecado("");
+      setDestinatarioRecado("");
       load();
     }
   }
 
-  async function removerRecado() {
-    if (!recado) return;
-    const { error } = await supabase.from("recados").delete().eq("id", recado.id);
-    if (!error) {
-      setRecado(null);
-    }
+  async function removerRecado(id: string) {
+    const { error } = await supabase.from("recados").delete().eq("id", id);
+    if (!error) setRecados((prev) => prev.filter((r) => r.id !== id));
   }
 
   async function logout() {
@@ -295,22 +294,51 @@ export default function PainelClient() {
       <div style={{ ...cardStyle, marginBottom: 20 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 8 }}>Recado pros atletas</div>
         <div style={{ fontSize: 11.5, color: "#5B6664", marginBottom: 10 }}>
-          Aparece pra todo mundo que abrir o check-in (não é um chat, é só um mural). Publicar um novo substitui o anterior.
+          Aparece pra quem você escolher quando abrir o check-in (não é um chat, é só um mural).
         </div>
-        {recado && (
-          <div style={{ background: "#FBF3E7", border: "1px solid #EED9B8", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <span>{recado.mensagem}</span>
-              <button
-                type="button"
-                onClick={removerRecado}
-                style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+
+        {recados.length > 0 && (
+          <div style={{ marginBottom: 10 }}>
+            {recados.map((r) => (
+              <div
+                key={r.id}
+                style={{
+                  background: "#FBF3E7",
+                  border: "1px solid #EED9B8",
+                  borderRadius: 6,
+                  padding: "8px 12px",
+                  marginBottom: 6,
+                  fontSize: 13,
+                }}
               >
-                Remover
-              </button>
-            </div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#B9812E", marginBottom: 2 }}>
+                      {r.athlete_id ? (athletes.find((a) => a.id === r.athlete_id)?.nome ?? "atleta removido") : "Todos os atletas"}
+                    </div>
+                    {r.mensagem}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removerRecado(r.id)}
+                    style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
+
+        <select style={{ ...inputStyle, marginTop: 0, marginBottom: 8 }} value={destinatarioRecado} onChange={(e) => setDestinatarioRecado(e.target.value)}>
+          <option value="">Todos os atletas</option>
+          {athletes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.nome}
+            </option>
+          ))}
+        </select>
         <div style={{ display: "flex", gap: 8 }}>
           <input
             style={{ ...inputStyle, marginTop: 0 }}

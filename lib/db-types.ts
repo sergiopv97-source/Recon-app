@@ -43,6 +43,7 @@ export interface CheckinRow {
 export interface RecadoRow {
   id: string;
   mensagem: string;
+  athlete_id: string | null;
   criado_em: string;
 }
 
