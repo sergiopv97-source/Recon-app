@@ -17,7 +17,7 @@ import {
   type CheckinComputed,
   type Modalidade,
 } from "@/lib/recon";
-import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow } from "@/lib/db-types";
+import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
 import Badge from "@/components/Badge";
 import HistoricoChart from "@/components/HistoricoChart";
@@ -43,17 +43,22 @@ export default function PainelClient() {
   const [lesaoForm, setLesaoForm] = useState(emptyLesaoForm);
   const [editando, setEditando] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ idade: "", peso: "", altura: "", posicao: "", historicoLesoes: "" });
+  const [recado, setRecado] = useState<RecadoRow | null>(null);
+  const [novoRecado, setNovoRecado] = useState("");
+  const [salvandoRecado, setSalvandoRecado] = useState(false);
 
   async function load() {
     setLoading(true);
-    const [a, c, l] = await Promise.all([
+    const [a, c, l, r] = await Promise.all([
       supabase.from("athletes").select("*").order("nome", { ascending: true }),
       supabase.from("checkins").select("*"),
       supabase.from("injuries").select("*"),
+      supabase.from("recados").select("*").order("criado_em", { ascending: false }).limit(1),
     ]);
     if (a.data) setAthletes(a.data as AthleteRow[]);
     if (c.data) setCheckins(c.data as CheckinRow[]);
     if (l.data) setInjuries(l.data as InjuryRow[]);
+    setRecado((r.data?.[0] as RecadoRow) ?? null);
     setLoading(false);
   }
 
@@ -62,6 +67,26 @@ export default function PainelClient() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function publicarRecado() {
+    const mensagem = novoRecado.trim();
+    if (!mensagem) return;
+    setSalvandoRecado(true);
+    const { error } = await supabase.from("recados").insert({ mensagem });
+    setSalvandoRecado(false);
+    if (!error) {
+      setNovoRecado("");
+      load();
+    }
+  }
+
+  async function removerRecado() {
+    if (!recado) return;
+    const { error } = await supabase.from("recados").delete().eq("id", recado.id);
+    if (!error) {
+      setRecado(null);
+    }
+  }
 
   async function logout() {
     await supabase.auth.signOut();
@@ -265,6 +290,53 @@ export default function PainelClient() {
         >
           Sair
         </button>
+      </div>
+
+      <div style={{ ...cardStyle, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 8 }}>Recado pros atletas</div>
+        <div style={{ fontSize: 11.5, color: "#5B6664", marginBottom: 10 }}>
+          Aparece pra todo mundo que abrir o check-in (não é um chat, é só um mural). Publicar um novo substitui o anterior.
+        </div>
+        {recado && (
+          <div style={{ background: "#FBF3E7", border: "1px solid #EED9B8", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 13 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <span>{recado.mensagem}</span>
+              <button
+                type="button"
+                onClick={removerRecado}
+                style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            style={{ ...inputStyle, marginTop: 0 }}
+            placeholder="ex: Treino de amanhã mais leve, atenção ao joelho"
+            value={novoRecado}
+            onChange={(e) => setNovoRecado(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={publicarRecado}
+            disabled={salvandoRecado || !novoRecado.trim()}
+            style={{
+              padding: "0 16px",
+              background: "#297379",
+              border: "none",
+              borderRadius: 6,
+              color: "#FFFFFF",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: novoRecado.trim() ? "pointer" : "not-allowed",
+              opacity: novoRecado.trim() ? 1 : 0.6,
+            }}
+          >
+            Publicar
+          </button>
+        </div>
       </div>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>

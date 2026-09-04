@@ -40,6 +40,12 @@ export interface CheckinRow {
   created_at: string;
 }
 
+export interface RecadoRow {
+  id: string;
+  mensagem: string;
+  criado_em: string;
+}
+
 export interface InjuryRow {
   id: string;
   athlete_id: string;

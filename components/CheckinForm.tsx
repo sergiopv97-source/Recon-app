@@ -15,7 +15,7 @@ import {
   recomendacoes,
   type Modalidade,
 } from "@/lib/recon";
-import { checkinRowToInput, type AthleteRosterRow, type CheckinRow } from "@/lib/db-types";
+import { checkinRowToInput, type AthleteRosterRow, type CheckinRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, primaryButtonStyle, cardStyle } from "@/lib/ui";
 import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
@@ -85,6 +85,15 @@ export default function CheckinForm() {
   const [etapa, setEtapa] = useState<"nome" | "cadastro" | "checkin">("nome");
   const [buscaNome, setBuscaNome] = useState("");
   const [verHistorico, setVerHistorico] = useState(false);
+  const [recado, setRecado] = useState<RecadoRow | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase.from("recados").select("*").order("criado_em", { ascending: false }).limit(1);
+      if (!error && data && data[0]) setRecado(data[0] as RecadoRow);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -171,6 +180,19 @@ export default function CheckinForm() {
       .filter((r) => r.itens.length > 0);
   }, [ultimoAtleta]);
 
+  // Compara a carga da última sessão com a média das sessões recentes do
+  // próprio atleta — dá pra ele um número concreto ("X% acima/abaixo do seu
+  // normal"), sem expor dado de mais ninguém.
+  const comparativoCarga = useMemo(() => {
+    if (!ultimoAtleta || ultimoAtleta.carga <= 0) return null;
+    const anteriores = serieRecente.slice(0, -1).filter((e) => e.carga > 0);
+    if (anteriores.length < 3) return null;
+    const media = anteriores.reduce((s, e) => s + e.carga, 0) / anteriores.length;
+    if (media <= 0) return null;
+    const diffPct = Math.round(((ultimoAtleta.carga - media) / media) * 100);
+    return { diffPct, media: Math.round(media), carga: ultimoAtleta.carga };
+  }, [serieRecente, ultimoAtleta]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErrorMsg("");
@@ -252,6 +274,23 @@ export default function CheckinForm() {
 
   return (
     <form onSubmit={submit}>
+      {recado && (
+        <div
+          style={{
+            background: "#FBF3E7",
+            border: "1px solid #EED9B8",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 14,
+            fontSize: 13,
+            color: "#14201F",
+          }}
+        >
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#B9812E", letterSpacing: 0.4, marginBottom: 2 }}>RECADO DO TREINADOR</div>
+          {recado.mensagem}
+        </div>
+      )}
+
       <div
         style={{
           background: "#E4F1F0",
@@ -416,6 +455,18 @@ export default function CheckinForm() {
               <HistoricoChart serie={serieRecente} />
             </div>
           )}
+        </div>
+      )}
+
+      {comparativoCarga && (
+        <div style={{ ...cardStyle, marginBottom: 18, display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontFamily: "'Poppins', sans-serif", fontSize: 22, fontWeight: 700, color: "#297379" }}>
+            {comparativoCarga.diffPct > 0 ? "+" : ""}
+            {comparativoCarga.diffPct}%
+          </span>
+          <span style={{ fontSize: 12.5, color: "#5B6664" }}>
+            de carga na última sessão ({comparativoCarga.carga}) em relação à sua média recente ({comparativoCarga.media})
+          </span>
         </div>
       )}
 

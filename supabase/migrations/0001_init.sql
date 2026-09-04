@@ -108,6 +108,37 @@ create policy "checkins: treinador apaga" on public.checkins
   using (true);
 
 -- -----------------------------------------------------------------------------
+-- Tabela: recados (mural do treinador pros atletas)
+-- -----------------------------------------------------------------------------
+-- Um recado simples que o treinador publica e todo mundo que abrir o
+-- check-in enxerga (o mais recente). Não é um chat — só uma via, do
+-- treinador pro atleta.
+create table if not exists public.recados (
+  id uuid primary key default gen_random_uuid(),
+  mensagem text not null,
+  criado_em timestamptz not null default now()
+);
+
+alter table public.recados enable row level security;
+
+-- Leitura aberta pra qualquer um (nada sensível aqui) — sem "to" de
+-- propósito, mesmo motivo das outras tabelas (compatibilidade com a
+-- publishable key nova do Supabase).
+create policy "recados: qualquer um le" on public.recados
+  for select
+  using (true);
+
+create policy "recados: treinador publica" on public.recados
+  for insert
+  to authenticated
+  with check (true);
+
+create policy "recados: treinador apaga" on public.recados
+  for delete
+  to authenticated
+  using (true);
+
+-- -----------------------------------------------------------------------------
 -- Tabela: injuries (lesões/doenças) — só o treinador mexe aqui, nunca o atleta
 -- -----------------------------------------------------------------------------
 create table if not exists public.injuries (
