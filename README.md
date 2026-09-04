@@ -319,6 +319,13 @@ grant execute on function public.submit_checkin(
 **Combinado pra próxima etapa** (discutido e adiado de propósito, não
 esquecido):
 
+- **Reforçar a filosofia "dado + ação" no histórico e no resumo** (combinado
+  pra 05/09/2026): hoje, quando o atleta abre "ver meu histórico", ele vê o
+  gráfico mas não uma explicação de por que um dia específico gerou alerta.
+  Dá pra destacar visualmente o dia do alerta com uma legenda curta do que
+  aconteceu ali. E o resumo em .txt que você baixa (`baixarResumo` em
+  `PainelClient.tsx`) hoje só lista números — dava pra fechar com uma
+  recomendação, igual ao que já aparece na tela.
 - **Lembrete automático de check-in** — dá pra fazer sem custo nenhum
   usando notificação push do navegador (funciona até no iPhone, desde que
   o atleta "instale" o site na tela inicial). Não dá pra cronometrar
