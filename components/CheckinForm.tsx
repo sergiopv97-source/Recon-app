@@ -155,6 +155,20 @@ export default function CheckinForm() {
     };
   }, [form.atleta, supabase]);
 
+  // Se o atleta já tem um check-in registrado na data escolhida (ex: 2ª
+  // sessão do mesmo dia — treino de manhã + jogo à noite), não faz sentido
+  // perguntar sono/fadiga/estresse/recuperação de novo: já foram
+  // respondidos hoje. Reaproveita as respostas (calculadas aqui, não
+  // sincronizadas pro form, pra não precisar de um efeito) e mostra um
+  // resumo em vez dos controles, com opção de editar se algo mudou.
+  const [editandoDiariosData, setEditandoDiariosData] = useState<string | null>(null);
+  const entradaMesmoDia = useMemo(() => recentRows.find((r) => r.data === form.data), [recentRows, form.data]);
+  const mostrarResumoDiario = Boolean(entradaMesmoDia) && editandoDiariosData !== form.data;
+  const sonoHorasEfetivo = mostrarResumoDiario ? entradaMesmoDia!.sono_horas ?? form.sonoHoras : form.sonoHoras;
+  const fadigaEfetiva = mostrarResumoDiario ? entradaMesmoDia!.fadiga ?? form.fadiga : form.fadiga;
+  const estresseEfetivo = mostrarResumoDiario ? entradaMesmoDia!.estresse ?? form.estresse : form.estresse;
+  const recuperacaoEfetiva = mostrarResumoDiario ? entradaMesmoDia!.recuperacao ?? form.recuperacao : form.recuperacao;
+
   const sugestoes = useMemo(() => {
     const q = buscaNome.trim().toLowerCase();
     if (!q) return [];
@@ -200,6 +214,13 @@ export default function CheckinForm() {
   }, [recentRows, nomeAtletaSelecionado]);
 
   const ultimoAtleta = serieRecente.length > 0 ? serieRecente[serieRecente.length - 1] : null;
+
+  // Usado pra oferecer o atalho "registrar outra sessão hoje" — o
+  // formulário avança a data pro dia seguinte depois de salvar (pra não
+  // precisar redigitar a data amanhã), então precisa de um jeito de voltar
+  // pra hoje rapidamente se o atleta treinar de novo no mesmo dia.
+  const hojeReal = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const jaTemCheckinHojeReal = useMemo(() => recentRows.some((r) => r.data === hojeReal), [recentRows, hojeReal]);
 
   const recsAutocuidado = useMemo(() => {
     if (!ultimoAtleta) return [];
@@ -278,12 +299,12 @@ export default function CheckinForm() {
         p_distancia_km: form.distanciaKm === "" ? null : Number(form.distanciaKm),
         p_tempo_min: form.tempoMin === "" ? null : Number(form.tempoMin),
         p_rpe: Number(form.rpe),
-        p_sono_horas: Number(form.sonoHoras),
-        p_fadiga: Number(form.fadiga),
-        p_estresse: Number(form.estresse),
+        p_sono_horas: Number(sonoHorasEfetivo),
+        p_fadiga: Number(fadigaEfetiva),
+        p_estresse: Number(estresseEfetivo),
         p_tem_dor: form.temDor,
         p_dor: form.temDor ? Number(form.dorNivel) : 0,
-        p_recuperacao: Number(form.recuperacao),
+        p_recuperacao: Number(recuperacaoEfetiva),
         p_regiao_dor: form.regiaoDor || null,
         p_observacoes: form.observacoes || null,
       });
@@ -539,6 +560,28 @@ export default function CheckinForm() {
         </button>
       </div>
 
+      {jaTemCheckinHojeReal && form.data !== hojeReal && (
+        <button
+          type="button"
+          onClick={() => setForm({ ...emptyForm, atleta: form.atleta, data: hojeReal })}
+          style={{
+            ...cardStyle,
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            background: "#E4F1F0",
+            border: "1px solid #DCE3E1",
+            cursor: "pointer",
+            marginBottom: 18,
+            fontSize: 13,
+            color: "#297379",
+            fontWeight: 600,
+          }}
+        >
+          + Treinou de novo hoje? Registrar outra sessão
+        </button>
+      )}
+
       {serieRecente.length > 1 && (
         <div style={{ marginBottom: 18 }}>
           <button
@@ -702,36 +745,67 @@ export default function CheckinForm() {
         </>
       )}
 
-      <div style={{ marginBottom: 22 }}>
-        <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Horas de sono (noite anterior)</label>
-        <input
-          style={inputStyle}
-          type="number"
-          min="0"
-          max="14"
-          step="0.5"
-          value={form.sonoHoras}
-          onChange={(e) => setForm({ ...form, sonoHoras: Number(e.target.value) })}
-        />
-        <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4 }}>Atletas costumam se beneficiar de 7–9h por noite</div>
-      </div>
-      <Slider label="Fadiga" value={form.fadiga} min={1} max={5} onChange={(v) => setForm({ ...form, fadiga: v })} hint="1 = descansado · 5 = exausto" />
-      <Slider
-        label="Estresse percebido"
-        value={form.estresse}
-        min={1}
-        max={5}
-        onChange={(v) => setForm({ ...form, estresse: v })}
-        hint="1 = tranquilo · 5 = muito estressado (trabalho, estudo, vida pessoal)"
-      />
-      <Slider
-        label="Sensação de recuperação"
-        value={form.recuperacao}
-        min={1}
-        max={5}
-        onChange={(v) => setForm({ ...form, recuperacao: v })}
-        hint="1 = nada recuperado · 5 = totalmente recuperado"
-      />
+      {mostrarResumoDiario ? (
+        <div style={{ ...cardStyle, marginBottom: 22 }}>
+          <div style={{ fontSize: 12.5, color: "#5B6664", marginBottom: 6 }}>
+            Você já respondeu sono, fadiga, estresse e recuperação hoje — vamos usar as mesmas respostas nessa sessão.
+          </div>
+          <div style={{ fontSize: 13, color: "#14201F", marginBottom: 8 }}>
+            Sono: {sonoHorasEfetivo}h · Fadiga: {fadigaEfetiva}/5 · Estresse: {estresseEfetivo}/5 · Recuperação: {recuperacaoEfetiva}/5
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setEditandoDiariosData(form.data);
+              if (entradaMesmoDia) {
+                setForm((f) => ({
+                  ...f,
+                  sonoHoras: entradaMesmoDia.sono_horas ?? f.sonoHoras,
+                  fadiga: entradaMesmoDia.fadiga ?? f.fadiga,
+                  estresse: entradaMesmoDia.estresse ?? f.estresse,
+                  recuperacao: entradaMesmoDia.recuperacao ?? f.recuperacao,
+                }));
+              }
+            }}
+            style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+          >
+            Mudou algo desde a última resposta hoje? Editar
+          </button>
+        </div>
+      ) : (
+        <>
+          <div style={{ marginBottom: 22 }}>
+            <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Horas de sono (noite anterior)</label>
+            <input
+              style={inputStyle}
+              type="number"
+              min="0"
+              max="14"
+              step="0.5"
+              value={form.sonoHoras}
+              onChange={(e) => setForm({ ...form, sonoHoras: Number(e.target.value) })}
+            />
+            <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4 }}>Atletas costumam se beneficiar de 7–9h por noite</div>
+          </div>
+          <Slider label="Fadiga" value={form.fadiga} min={1} max={5} onChange={(v) => setForm({ ...form, fadiga: v })} hint="1 = descansado · 5 = exausto" />
+          <Slider
+            label="Estresse percebido"
+            value={form.estresse}
+            min={1}
+            max={5}
+            onChange={(v) => setForm({ ...form, estresse: v })}
+            hint="1 = tranquilo · 5 = muito estressado (trabalho, estudo, vida pessoal)"
+          />
+          <Slider
+            label="Sensação de recuperação"
+            value={form.recuperacao}
+            min={1}
+            max={5}
+            onChange={(v) => setForm({ ...form, recuperacao: v })}
+            hint="1 = nada recuperado · 5 = totalmente recuperado"
+          />
+        </>
+      )}
 
       <div style={{ marginBottom: 18 }}>
         <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Está sentindo dor?</label>
