@@ -370,9 +370,17 @@ export interface Recomendacao {
 //   com adaptação (o objetivo ali não é hipertrofia).
 // - Massagem: Frontiers in Physiology 2017 (Guo et al.), meta-análise — uma
 //   das intervenções com maior efeito medido pra dor muscular tardia.
-// - Compressão: Sports Medicine 2017 (Marqués-Jiménez et al.) e revisões
-//   mais recentes — efeito moderado, mais consistente em recuperação de
-//   força a partir de 24h.
+// - Compressão (roupa elástica): Sports Medicine 2017 (Marqués-Jiménez et
+//   al.) e revisões mais recentes — efeito moderado, mais consistente em
+//   recuperação de força a partir de 24h.
+// - Bota de compressão pneumática (IPC — equipamento com compressores de
+//   ar, ex: NormaTec): é um recurso DIFERENTE da roupa de compressão acima
+//   (não é a mesma coisa, tem estudos próprios). Meta-análise de 2024
+//   (Frontiers in Physiology, 17 estudos/319 atletas) encontrou efeito
+//   pequeno a moderado na dor muscular percebida (o mais consistente, com
+//   pico ~48h depois) e efeito pequeno a trivial em força/potência no dia
+//   seguinte. Não é milagroso, mas é um recurso legítimo — por isso listado
+//   separado da roupa de compressão, não junto.
 // - Alongamento pra dor muscular: Cochrane (Herbert 2011) — sem efeito
 //   clinicamente relevante. Por isso o app não promete alívio de dor via
 //   alongamento, só benefício geral de mobilidade.
@@ -413,7 +421,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
             publico: "terapeutico",
           },
           {
-            texto: "Compressão — evidência mais consistente aqui do que em outras modalidades: benefício moderado na recuperação de força a partir de 24h (Sports Medicine 2017)",
+            texto: "Compressão (roupa elástica) — evidência mais consistente aqui do que em outras modalidades: benefício moderado na recuperação de força a partir de 24h (Sports Medicine 2017)",
+            publico: "terapeutico",
+          },
+          {
+            texto: "Bota de compressão pneumática — efeito pequeno a moderado na dor muscular percebida, pico por volta de 48h; pouco efeito em força/potência (meta-análise 2024, Frontiers in Physiology)",
             publico: "terapeutico",
           },
           { texto: "Massagem segue com bom suporte de evidência pra reduzir dor muscular percebida (Frontiers in Physiology 2017)", publico: "terapeutico" },
@@ -429,7 +441,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
             texto: "Crioterapia (imersão em água fria) nas primeiras 24–48h — ajuda a chegar melhor pro próximo jogo quando a competição é próxima (Cochrane CD008262)",
             publico: "terapeutico",
           },
-          { texto: "Compressão pode ajudar a recuperação, com efeito moderado (Sports Medicine 2017)", publico: "terapeutico" },
+          { texto: "Compressão (roupa elástica) pode ajudar a recuperação, com efeito moderado (Sports Medicine 2017)", publico: "terapeutico" },
+          {
+            texto: "Bota de compressão pneumática — efeito pequeno a moderado na dor muscular percebida, pico por volta de 48h (meta-análise 2024, Frontiers in Physiology)",
+            publico: "terapeutico",
+          },
         ],
       });
     }
@@ -454,7 +470,11 @@ export function recomendacoes(modalidade: Modalidade, alertaCarga: Alerta | null
       itens: [
         { texto: "Evitar novo estímulo de alta carga até a dor reduzir", publico: "todos" },
         { texto: "Avisar o fisioterapeuta antes da próxima sessão intensa", publico: "todos" },
-        { texto: "Compressão pode reduzir a percepção de dor muscular, com efeito moderado a bom (Sports Medicine 2017)", publico: "terapeutico" },
+        { texto: "Compressão (roupa elástica) pode reduzir a percepção de dor muscular, com efeito moderado a bom (Sports Medicine 2017)", publico: "terapeutico" },
+        {
+          texto: "Bota de compressão pneumática — efeito pequeno a moderado na dor muscular percebida, que é justamente o sintoma aqui (meta-análise 2024, Frontiers in Physiology)",
+          publico: "terapeutico",
+        },
         { texto: "Massagem está entre as intervenções com maior efeito medido pra dor muscular (Frontiers in Physiology 2017)", publico: "terapeutico" },
       ],
     });
