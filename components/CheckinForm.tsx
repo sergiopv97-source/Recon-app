@@ -50,6 +50,8 @@ const emptyForm = {
   novoAtletaPeso: "",
   novoAtletaAltura: "",
   novoAtletaPosicao: "",
+  novoAtletaResponsavelNome: "",
+  novoAtletaResponsavelContato: "",
   aceitouTermos: false,
   data: new Date().toISOString().slice(0, 10),
   modalidade: "Futsal" as Modalidade,
@@ -184,6 +186,12 @@ export default function CheckinForm() {
     return roster.find((a) => a.id === form.atleta)?.nome ?? "";
   }, [form.atleta, form.novoAtleta, roster]);
 
+  // Menor de idade precisa do consentimento do responsável (LGPD), não do
+  // próprio atleta — só sabemos isso depois que a idade é preenchida no
+  // cadastro.
+  const isMinor = form.novoAtletaIdade !== "" && Number(form.novoAtletaIdade) < 18;
+  const responsavelPreenchido = form.novoAtletaResponsavelNome.trim() !== "" && form.novoAtletaResponsavelContato.trim() !== "";
+
   const serieRecente = useMemo(() => {
     const inputs = recentRows
       .map((r) => checkinRowToInput(r, nomeAtletaSelecionado))
@@ -232,6 +240,11 @@ export default function CheckinForm() {
           setSaving(false);
           return;
         }
+        if (isMinor && !responsavelPreenchido) {
+          setErrorMsg("Atleta menor de idade: precisa informar nome e contato do responsável.");
+          setSaving(false);
+          return;
+        }
         const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
           p_nome: nomeFinal,
           p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
@@ -240,6 +253,8 @@ export default function CheckinForm() {
           p_posicao: form.novoAtletaPosicao.trim() || null,
           p_historico_lesoes: form.novoAtletaLesoes.trim() || null,
           p_consentimento_aceito: true,
+          p_responsavel_nome: isMinor ? form.novoAtletaResponsavelNome.trim() : null,
+          p_responsavel_contato: isMinor ? form.novoAtletaResponsavelContato.trim() : null,
         });
         const novoAtletaRow = inserted?.[0];
         if (insertErr || !novoAtletaRow) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
@@ -278,7 +293,31 @@ export default function CheckinForm() {
       setForm({ ...emptyForm, atleta: athleteId, data: proximaData(form.data) });
 
       const { data: refreshed } = await supabase.rpc("get_own_recent_checkins", { p_athlete_id: athleteId });
-      if (refreshed) setRecentRows(refreshed as CheckinRow[]);
+      if (refreshed) {
+        const rows = refreshed as CheckinRow[];
+        setRecentRows(rows);
+
+        // Se o check-in que acabou de ser salvo gerou um alerta vermelho
+        // (de carga ou clínico), avisa o treinador por e-mail. Não bloqueia
+        // nem mostra erro pro atleta se isso falhar — o check-in dele já
+        // foi salvo, isso é só um aviso extra.
+        const inputsAtualizados = rows.map((r) => checkinRowToInput(r, nomeAtletaSelecionado)).sort((a, b) => a.data.localeCompare(b.data));
+        const serieAtualizada = computeSeries(inputsAtualizados);
+        const idSalvo = rows.find((row) => row.data === form.data && row.modalidade === form.modalidade && row.tipo === form.tipo)?.id;
+        const registroSalvo = serieAtualizada.find((r) => r.id === idSalvo) ?? serieAtualizada[serieAtualizada.length - 1];
+        const alertasVermelhos = [registroSalvo?.alertaCarga, registroSalvo?.alertaClinico]
+          .filter((a) => a?.tone === "danger")
+          .map((a) => a!.label);
+        if (alertasVermelhos.length > 0) {
+          fetch("/api/notificar-alerta", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ atleta: nomeAtletaSelecionado, alertas: alertasVermelhos }),
+          }).catch(() => {
+            // sem problema se falhar — é só um aviso extra, o check-in já foi salvo
+          });
+        }
+      }
     } catch (err) {
       const message = errorMessage(err);
       setErrorMsg("Não foi possível salvar: " + message + ". Tente novamente.");
@@ -450,18 +489,40 @@ export default function CheckinForm() {
             value={form.novoAtletaLesoes}
             onChange={(e) => setForm({ ...form, novoAtletaLesoes: e.target.value })}
           />
+
+          {isMinor && (
+            <div style={{ marginTop: 16, background: "#FBF3E7", border: "1px solid #EED9B8", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 4 }}>Atleta menor de idade</div>
+              <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 10 }}>
+                Como é menor de 18 anos, o responsável precisa preencher os dados abaixo e aceitar o termo em seguida.
+              </div>
+              <input
+                style={inputStyle}
+                placeholder="Nome do responsável"
+                value={form.novoAtletaResponsavelNome}
+                onChange={(e) => setForm({ ...form, novoAtletaResponsavelNome: e.target.value })}
+              />
+              <input
+                style={{ ...inputStyle, marginTop: 10 }}
+                placeholder="Contato do responsável (telefone ou e-mail)"
+                value={form.novoAtletaResponsavelContato}
+                onChange={(e) => setForm({ ...form, novoAtletaResponsavelContato: e.target.value })}
+              />
+            </div>
+          )}
+
           <div style={{ marginTop: 16, marginBottom: 16 }}>
-            <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} />
+            <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} isMinor={isMinor} />
           </div>
           <button
             type="button"
-            disabled={!form.aceitouTermos}
+            disabled={!form.aceitouTermos || (isMinor && !responsavelPreenchido)}
             onClick={() => setEtapa("checkin")}
             style={{
               ...primaryButtonStyle,
               width: "100%",
-              opacity: form.aceitouTermos ? 1 : 0.5,
-              cursor: form.aceitouTermos ? "pointer" : "not-allowed",
+              opacity: form.aceitouTermos && (!isMinor || responsavelPreenchido) ? 1 : 0.5,
+              cursor: form.aceitouTermos && (!isMinor || responsavelPreenchido) ? "pointer" : "not-allowed",
             }}
           >
             Continuar

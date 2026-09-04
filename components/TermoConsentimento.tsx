@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { TERMO_TITULO, TERMO_CABECALHO, TERMO_SECOES, TERMO_CONTATO, TERMO_DECLARACAO } from "@/lib/consentimento";
+import { TERMO_TITULO, TERMO_CABECALHO, TERMO_SECOES, TERMO_CONTATO, TERMO_DECLARACAO, TERMO_DECLARACAO_RESPONSAVEL } from "@/lib/consentimento";
 
 export default function TermoConsentimento({
   aceito,
   onChangeAceito,
+  isMinor = false,
 }: {
   aceito: boolean;
   onChangeAceito: (v: boolean) => void;
+  isMinor?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
 
@@ -16,7 +18,9 @@ export default function TermoConsentimento({
     <div style={{ background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 8, padding: "14px 16px", marginBottom: 18 }}>
       <div style={{ fontSize: 14, fontWeight: 600, color: "#14201F", marginBottom: 4 }}>Termo de consentimento (LGPD)</div>
       <div style={{ fontSize: 12.5, color: "#5B6664", marginBottom: 8 }}>
-        Como é seu primeiro check-in, precisamos que você leia e concorde com o uso dos seus dados.
+        {isMinor
+          ? "Como o atleta é menor de idade, o responsável precisa ler e concordar com o uso dos dados dele."
+          : "Como é seu primeiro check-in, precisamos que você leia e concorde com o uso dos seus dados."}
       </div>
 
       <button
@@ -84,7 +88,7 @@ export default function TermoConsentimento({
           style={{ marginTop: 3, width: 18, height: 18, accentColor: "#297379", flexShrink: 0 }}
           required
         />
-        <span style={{ fontSize: 13, color: "#14201F" }}>{TERMO_DECLARACAO}</span>
+        <span style={{ fontSize: 13, color: "#14201F" }}>{isMinor ? TERMO_DECLARACAO_RESPONSAVEL : TERMO_DECLARACAO}</span>
       </label>
     </div>
   );

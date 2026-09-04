@@ -19,9 +19,19 @@ create table if not exists public.athletes (
   altura numeric,
   posicao text,
   historico_lesoes text,
+  -- Preenchidos só quando o atleta é menor de idade (< 18 anos): nome e
+  -- contato do responsável legal que deu o consentimento em nome dele
+  -- (LGPD exige consentimento do responsável, não do próprio menor).
+  responsavel_nome text,
+  responsavel_contato text,
   consentimento_aceito_em timestamptz,
   created_at timestamptz not null default now()
 );
+
+-- Caso a tabela já exista de uma instalação anterior (antes dos campos de
+-- responsável serem adicionados), garante que as colunas novas existam.
+alter table public.athletes add column if not exists responsavel_nome text;
+alter table public.athletes add column if not exists responsavel_contato text;
 
 alter table public.athletes enable row level security;
 
@@ -82,8 +92,26 @@ create table if not exists public.checkins (
   regiao_dor text,
   observacoes text,
   created_at timestamptz not null default now(),
-  unique (athlete_id, data)
+  -- Antes era "unique (athlete_id, data)" (só 1 check-in por atleta por dia).
+  -- Agora permite mais de uma sessão no mesmo dia (ex: treino de manhã +
+  -- jogo à noite), desde que modalidade ou tipo sejam diferentes. Reenviar
+  -- com a MESMA modalidade+tipo no mesmo dia continua sendo tratado como
+  -- correção do mesmo registro (sobrescreve), igual antes.
+  unique (athlete_id, data, modalidade, tipo)
 );
+
+-- Caso a tabela já exista de uma instalação anterior (com a regra antiga de
+-- só 1 check-in por atleta por dia), troca pra nova regra que permite mais
+-- de uma sessão no mesmo dia (mesma modalidade+tipo continua sobrescrevendo).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'checkins_athlete_id_data_modalidade_tipo_key'
+  ) then
+    alter table public.checkins drop constraint if exists checkins_athlete_id_data_key;
+    alter table public.checkins add constraint checkins_athlete_id_data_modalidade_tipo_key unique (athlete_id, data, modalidade, tipo);
+  end if;
+end $$;
 
 alter table public.checkins enable row level security;
 
@@ -208,9 +236,13 @@ grant execute on function public.get_own_recent_checkins(uuid) to public;
 -- consegue devolver o id sem exigir isso, sem abrir a leitura da tabela pra
 -- ninguém. Também exige o aceite do termo de consentimento (LGPD) — sem
 -- isso, o cadastro é recusado mesmo que alguém tente pular a tela pelo app.
--- (o "drop" abaixo remove uma versão antiga desta função, sem o parâmetro
--- de consentimento, pra não deixar duas versões ambíguas coexistindo)
+-- Se o atleta for menor de idade (p_idade < 18), também exige nome e
+-- contato do responsável — o consentimento de um menor sozinho não é
+-- válido perante a LGPD.
+-- (o "drop" abaixo remove versões antigas desta função, com uma lista de
+-- parâmetros diferente, pra não deixar duas versões ambíguas coexistindo)
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text);
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean);
 
 create or replace function public.register_athlete(
   p_nome text,
@@ -219,7 +251,9 @@ create or replace function public.register_athlete(
   p_altura numeric default null,
   p_posicao text default null,
   p_historico_lesoes text default null,
-  p_consentimento_aceito boolean default false
+  p_consentimento_aceito boolean default false,
+  p_responsavel_nome text default null,
+  p_responsavel_contato text default null
 )
 returns table (id uuid, nome text)
 language plpgsql
@@ -231,14 +265,18 @@ begin
     raise exception 'É necessário aceitar o termo de consentimento para se cadastrar.';
   end if;
 
+  if p_idade is not null and p_idade < 18 and (p_responsavel_nome is null or trim(p_responsavel_nome) = '' or p_responsavel_contato is null or trim(p_responsavel_contato) = '') then
+    raise exception 'Atleta menor de idade: é necessário informar nome e contato do responsável.';
+  end if;
+
   return query
-    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, consentimento_aceito_em)
-    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, now())
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, now())
     returning athletes.id, athletes.nome;
 end;
 $$;
 
-grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean) to public;
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text) to public;
 
 -- -----------------------------------------------------------------------------
 -- Função: submit_checkin
@@ -281,7 +319,10 @@ begin
     p_tempo_min, p_rpe, p_sono_horas, p_fadiga, p_estresse, p_tem_dor, p_dor, p_recuperacao,
     p_regiao_dor, p_observacoes
   )
-  on conflict (athlete_id, data) do update set
+  -- reenviar com a mesma modalidade+tipo no mesmo dia é tratado como
+  -- correção do mesmo registro (sobrescreve); modalidade ou tipo diferentes
+  -- no mesmo dia viram uma sessão nova (ex: treino de manhã + jogo à noite)
+  on conflict (athlete_id, data, modalidade, tipo) do update set
     modalidade = excluded.modalidade,
     tipo = excluded.tipo,
     tipo_outro = excluded.tipo_outro,

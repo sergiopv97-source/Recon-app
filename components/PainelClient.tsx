@@ -563,6 +563,12 @@ export default function PainelClient() {
                       <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
                         Lesões prévias (cadastro): {infoAtleta.historico_lesoes || "nenhuma informada"}
                       </div>
+                      {(infoAtleta.responsavel_nome || infoAtleta.responsavel_contato) && (
+                        <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 6 }}>
+                          Responsável (menor de idade): {infoAtleta.responsavel_nome || "—"}
+                          {infoAtleta.responsavel_contato ? ` · ${infoAtleta.responsavel_contato}` : ""}
+                        </div>
+                      )}
                       <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 10 }}>
                         Termo de consentimento (LGPD):{" "}
                         {infoAtleta.consentimento_aceito_em ? (

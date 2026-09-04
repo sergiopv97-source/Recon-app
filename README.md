@@ -148,6 +148,161 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Implementado nesta rodada** (os 3 itens combinados):
+
+- **Aviso por e-mail em alerta vermelho** — sempre que um check-in gera um
+  alerta vermelho (de carga ou clínico), o site tenta mandar um e-mail pra
+  você avisando. É opcional: só liga se você configurar duas variáveis de
+  ambiente na Vercel (`RESEND_API_KEY` e `TRAINER_EMAIL`) usando a
+  [Resend](https://resend.com) (tem plano grátis). Passo a passo:
+  1. Crie uma conta em resend.com (dá pra usar login do GitHub ou Google).
+  2. No painel da Resend, vá em **"API Keys" → "Create API Key"** e copie a
+     chave gerada.
+  3. Na Vercel, em **Project Settings → Environment Variables**, adicione:
+     - `RESEND_API_KEY` → a chave que você copiou
+     - `TRAINER_EMAIL` → o e-mail que você quer receber os avisos (o mesmo
+       da sua conta Resend, pra funcionar sem precisar verificar um domínio
+       próprio)
+  4. Redeploy o site (Vercel faz isso sozinho ao detectar a mudança, ou use
+     "Redeploy" manualmente).
+  Sem essas duas variáveis configuradas, o site continua funcionando
+  normalmente — só não manda o e-mail.
+- **Consentimento do responsável para menores de idade** — ao cadastrar um
+  atleta com menos de 18 anos, o formulário agora pede nome e contato do
+  responsável, e o termo de consentimento passa a ser dirigido a ele (não
+  ao próprio menor), como exige a LGPD. Isso fica salvo no cadastro e
+  aparece pra você no painel.
+- **Mais de uma sessão por dia** — antes, um atleta só conseguia ter 1
+  check-in por dia (enviar de novo sobrescrevia o anterior). Agora dá pra
+  registrar mais de uma sessão no mesmo dia, desde que a modalidade ou o
+  tipo sejam diferentes (ex: treino de manhã + jogo à noite). Reenviar com
+  a mesma modalidade e tipo no mesmo dia continua sendo tratado como
+  correção do mesmo registro. Não precisou mudar nada na tela do atleta —
+  é só preencher de novo no mesmo dia com modalidade/tipo diferente.
+  **Um detalhe técnico pra você saber**: a fórmula de alerta de carga
+  (`lib/recon.ts`) olha pra "carga somada das últimas 3 sessões" — antes
+  isso praticamente sempre eram 3 dias diferentes; com múltiplas sessões
+  por dia, pode passar a somar sessões de menos dias (ex: 2 sessões de hoje
+  + 1 de ontem). Isso não foi alterado agora pra não mexer numa fórmula já
+  validada sem necessidade — mas se no futuro os atletas usarem
+  frequentemente 2+ sessões/dia, pode valer a pena revisitar esse cálculo
+  com você.
+
+Depois de atualizar o código (`git pull` ou aguardar o deploy automático da
+Vercel), rode este SQL no **Supabase SQL Editor** pra atualizar o banco que
+já está em produção (é seguro rodar mesmo com dados existentes — só
+adiciona o que falta, não apaga nada):
+
+```sql
+alter table public.athletes add column if not exists responsavel_nome text;
+alter table public.athletes add column if not exists responsavel_contato text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'checkins_athlete_id_data_modalidade_tipo_key'
+  ) then
+    alter table public.checkins drop constraint if exists checkins_athlete_id_data_key;
+    alter table public.checkins add constraint checkins_athlete_id_data_modalidade_tipo_key unique (athlete_id, data, modalidade, tipo);
+  end if;
+end $$;
+
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text);
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean);
+
+create or replace function public.register_athlete(
+  p_nome text,
+  p_idade integer default null,
+  p_peso numeric default null,
+  p_altura numeric default null,
+  p_posicao text default null,
+  p_historico_lesoes text default null,
+  p_consentimento_aceito boolean default false,
+  p_responsavel_nome text default null,
+  p_responsavel_contato text default null
+)
+returns table (id uuid, nome text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not p_consentimento_aceito then
+    raise exception 'É necessário aceitar o termo de consentimento para se cadastrar.';
+  end if;
+
+  if p_idade is not null and p_idade < 18 and (p_responsavel_nome is null or trim(p_responsavel_nome) = '' or p_responsavel_contato is null or trim(p_responsavel_contato) = '') then
+    raise exception 'Atleta menor de idade: é necessário informar nome e contato do responsável.';
+  end if;
+
+  return query
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, now())
+    returning athletes.id, athletes.nome;
+end;
+$$;
+
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text) to public;
+
+create or replace function public.submit_checkin(
+  p_athlete_id uuid,
+  p_data date,
+  p_modalidade text,
+  p_tipo text,
+  p_tipo_outro text default null,
+  p_minutos numeric default null,
+  p_distancia_km numeric default null,
+  p_tempo_min numeric default null,
+  p_rpe integer default null,
+  p_sono_horas numeric default null,
+  p_fadiga integer default null,
+  p_estresse integer default null,
+  p_tem_dor boolean default false,
+  p_dor integer default 0,
+  p_recuperacao integer default null,
+  p_regiao_dor text default null,
+  p_observacoes text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.checkins (
+    athlete_id, data, modalidade, tipo, tipo_outro, minutos, distancia_km,
+    tempo_min, rpe, sono_horas, fadiga, estresse, tem_dor, dor, recuperacao,
+    regiao_dor, observacoes
+  ) values (
+    p_athlete_id, p_data, p_modalidade, p_tipo, p_tipo_outro, p_minutos, p_distancia_km,
+    p_tempo_min, p_rpe, p_sono_horas, p_fadiga, p_estresse, p_tem_dor, p_dor, p_recuperacao,
+    p_regiao_dor, p_observacoes
+  )
+  on conflict (athlete_id, data, modalidade, tipo) do update set
+    modalidade = excluded.modalidade,
+    tipo = excluded.tipo,
+    tipo_outro = excluded.tipo_outro,
+    minutos = excluded.minutos,
+    distancia_km = excluded.distancia_km,
+    tempo_min = excluded.tempo_min,
+    rpe = excluded.rpe,
+    sono_horas = excluded.sono_horas,
+    fadiga = excluded.fadiga,
+    estresse = excluded.estresse,
+    tem_dor = excluded.tem_dor,
+    dor = excluded.dor,
+    recuperacao = excluded.recuperacao,
+    regiao_dor = excluded.regiao_dor,
+    observacoes = excluded.observacoes;
+end;
+$$;
+
+grant execute on function public.submit_checkin(
+  uuid, date, text, text, text, numeric, numeric, numeric, integer, numeric,
+  integer, integer, boolean, integer, integer, text, text
+) to public;
+```
+
 **Combinado pra próxima etapa** (discutido e adiado de propósito, não
 esquecido):
 

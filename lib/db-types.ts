@@ -14,6 +14,10 @@ export interface AthleteRow extends AthleteRosterRow {
   altura: number | null;
   posicao: string | null;
   historico_lesoes: string | null;
+  // Preenchidos só quando o atleta é menor de idade (consentimento do
+  // responsável, exigido pela LGPD).
+  responsavel_nome: string | null;
+  responsavel_contato: string | null;
   consentimento_aceito_em: string | null;
   created_at: string;
 }

@@ -71,3 +71,8 @@ export const TERMO_CONTATO = "Contato do responsável: Sergio Vargas — (55) 99
 
 export const TERMO_DECLARACAO =
   "Declaro que li e compreendi as informações acima, e concordo com a coleta e uso dos meus dados para os fins descritos neste termo.";
+
+// Usado quando o atleta é menor de idade — quem aceita é o responsável
+// legal, não o próprio menor (exigência da LGPD).
+export const TERMO_DECLARACAO_RESPONSAVEL =
+  "Declaro que li e compreendi as informações acima e, na condição de responsável legal pelo atleta menor de idade acima identificado, concordo com a coleta e uso dos dados dele para os fins descritos neste termo.";
