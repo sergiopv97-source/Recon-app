@@ -17,6 +17,7 @@ export const MODALIDADES = [
   "Musculação",
   "Corrida",
   "Bike",
+  "Artes Marciais",
 ] as const;
 
 export type Modalidade = (typeof MODALIDADES)[number];
@@ -31,6 +32,7 @@ export const MODALIDADE_INPUT: Record<Modalidade, "duracao" | "distancia"> = {
   Musculação: "duracao",
   Corrida: "distancia",
   Bike: "distancia",
+  "Artes Marciais": "duracao",
 };
 
 export const DURACAO_LABEL: Partial<Record<Modalidade, string>> = {
@@ -40,6 +42,7 @@ export const DURACAO_LABEL: Partial<Record<Modalidade, string>> = {
   Pádel: "Minutos jogados",
   CrossFit: "Duração da sessão (min)",
   Musculação: "Duração do treino (min)",
+  "Artes Marciais": "Minutos de treino/luta",
 };
 
 export const TIPOS_POR_MODALIDADE: Record<Modalidade, string[]> = {
@@ -51,9 +54,12 @@ export const TIPOS_POR_MODALIDADE: Record<Modalidade, string[]> = {
   Musculação: ["Treino", "Outro", "Descanso", "Viagem"],
   Corrida: ["Prova", "Treino", "Outro", "Descanso", "Viagem"],
   Bike: ["Prova", "Treino", "Outro", "Descanso", "Viagem"],
+  // "Luta" cobre competição (torneio, sparring valendo) — equivalente ao
+  // "Jogo" dos esportes de quadra/campo, pra fins de cálculo de carga.
+  "Artes Marciais": ["Luta", "Treino", "Outro", "Descanso", "Viagem"],
 };
 
-export const TIPOS_COM_CARGA = ["Jogo", "Prova", "WOD", "Treino", "Outro"];
+export const TIPOS_COM_CARGA = ["Jogo", "Prova", "WOD", "Treino", "Outro", "Luta"];
 
 export const MODALIDADE_CATEGORIA: Record<Modalidade, "impacto" | "funcional" | "endurance"> = {
   Futsal: "impacto",
@@ -64,6 +70,12 @@ export const MODALIDADE_CATEGORIA: Record<Modalidade, "impacto" | "funcional" | 
   Musculação: "funcional",
   Corrida: "endurance",
   Bike: "endurance",
+  // Categorizado como "impacto" (mesmo grupo dos esportes de quadra/campo):
+  // sem objetivo de hipertrofia como treino de força, então crioterapia
+  // pós-sessão não tem o mesmo conflito de adaptação que em Musculação/
+  // CrossFit — e o padrão intermitente de esforço se parece mais com jogo
+  // de quadra do que com treino de força contínuo.
+  "Artes Marciais": "impacto",
 };
 
 export type Tone = "ok" | "warn" | "danger";
