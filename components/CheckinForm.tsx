@@ -14,6 +14,7 @@ import {
   paceMinKm,
   recomendacoes,
   sequenciaCheckins,
+  numeroBr,
   type Modalidade,
 } from "@/lib/recon";
 import { checkinRowToInput, type AthleteRosterRow, type CheckinRow, type RecadoRow } from "@/lib/db-types";
@@ -63,7 +64,7 @@ const emptyForm = {
   distanciaKm: "",
   tempoMin: "",
   rpe: 5,
-  sonoHoras: 8,
+  sonoHoras: "8",
   fadiga: 3,
   estresse: 3,
   temDor: false,
@@ -291,13 +292,17 @@ export default function CheckinForm() {
       const tipoValido = modalidadeValida && TIPOS_POR_MODALIDADE[modalidadeValida].includes(dados.tipo) ? dados.tipo : null;
       const dataValida = typeof dados.data === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dados.data) ? dados.data : null;
 
+      // Usa vírgula (formato brasileiro) ao preencher — os campos aceitam
+      // texto livre, e é o que o atleta espera ver/digitar por aqui.
+      const paraTextoBr = (n: number) => String(n).replace(".", ",");
+
       setForm((f) => ({
         ...f,
         modalidade: modalidadeValida ?? f.modalidade,
         tipo: tipoValido ?? (modalidadeValida ? TIPOS_POR_MODALIDADE[modalidadeValida][0] : f.tipo),
-        distanciaKm: typeof dados.distanciaKm === "number" ? String(dados.distanciaKm) : f.distanciaKm,
-        tempoMin: typeof dados.tempoMin === "number" ? String(dados.tempoMin) : f.tempoMin,
-        minutos: typeof dados.minutos === "number" ? String(dados.minutos) : f.minutos,
+        distanciaKm: typeof dados.distanciaKm === "number" ? paraTextoBr(dados.distanciaKm) : f.distanciaKm,
+        tempoMin: typeof dados.tempoMin === "number" ? paraTextoBr(dados.tempoMin) : f.tempoMin,
+        minutos: typeof dados.minutos === "number" ? paraTextoBr(dados.minutos) : f.minutos,
         data: dataValida ?? f.data,
       }));
 
@@ -339,7 +344,7 @@ export default function CheckinForm() {
         const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
           p_nome: nomeFinal,
           p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
-          p_peso: form.novoAtletaPeso ? Number(form.novoAtletaPeso) : null,
+          p_peso: form.novoAtletaPeso ? numeroBr(form.novoAtletaPeso) : null,
           p_altura: form.novoAtletaAltura ? Number(form.novoAtletaAltura) : null,
           p_posicao: form.novoAtletaPosicao.trim() || null,
           p_historico_lesoes: form.novoAtletaLesoes.trim() || null,
@@ -365,11 +370,11 @@ export default function CheckinForm() {
         p_modalidade: form.modalidade,
         p_tipo: form.tipo,
         p_tipo_outro: form.tipo === "Outro" ? form.tipoOutro : null,
-        p_minutos: form.minutos === "" ? null : Number(form.minutos),
-        p_distancia_km: form.distanciaKm === "" ? null : Number(form.distanciaKm),
-        p_tempo_min: form.tempoMin === "" ? null : Number(form.tempoMin),
+        p_minutos: form.minutos === "" ? null : numeroBr(form.minutos),
+        p_distancia_km: form.distanciaKm === "" ? null : numeroBr(form.distanciaKm),
+        p_tempo_min: form.tempoMin === "" ? null : numeroBr(form.tempoMin),
         p_rpe: Number(form.rpe),
-        p_sono_horas: Number(sonoHorasEfetivo),
+        p_sono_horas: numeroBr(sonoHorasEfetivo),
         p_fadiga: Number(fadigaEfetiva),
         p_estresse: Number(estresseEfetivo),
         p_tem_dor: form.temDor,
@@ -552,9 +557,8 @@ export default function CheckinForm() {
             />
             <input
               style={inputStyle}
-              type="number"
-              min="0"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
               placeholder="Peso (kg)"
               value={form.novoAtletaPeso}
               onChange={(e) => setForm({ ...form, novoAtletaPeso: e.target.value })}
@@ -790,9 +794,8 @@ export default function CheckinForm() {
             <label style={{ fontSize: 13, color: "#5B6664" }}>{DURACAO_LABEL[form.modalidade]}</label>
             <input
               style={inputStyle}
-              type="number"
-              min="0"
-              step="0.1"
+              type="text"
+              inputMode="decimal"
               value={form.minutos}
               onChange={(e) => setForm({ ...form, minutos: e.target.value })}
               placeholder="ex: 25"
@@ -817,9 +820,8 @@ export default function CheckinForm() {
               <label style={{ fontSize: 13, color: "#5B6664" }}>Distância (km)</label>
               <input
                 style={inputStyle}
-                type="number"
-                min="0"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={form.distanciaKm}
                 onChange={(e) => setForm({ ...form, distanciaKm: e.target.value })}
                 placeholder="ex: 10"
@@ -830,9 +832,8 @@ export default function CheckinForm() {
               <label style={{ fontSize: 13, color: "#5B6664" }}>Tempo total (min)</label>
               <input
                 style={inputStyle}
-                type="number"
-                min="0"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={form.tempoMin}
                 onChange={(e) => setForm({ ...form, tempoMin: e.target.value })}
                 placeholder="ex: 52"
@@ -871,7 +872,7 @@ export default function CheckinForm() {
               if (entradaMesmoDia) {
                 setForm((f) => ({
                   ...f,
-                  sonoHoras: entradaMesmoDia.sono_horas ?? f.sonoHoras,
+                  sonoHoras: entradaMesmoDia.sono_horas != null ? String(entradaMesmoDia.sono_horas) : f.sonoHoras,
                   fadiga: entradaMesmoDia.fadiga ?? f.fadiga,
                   estresse: entradaMesmoDia.estresse ?? f.estresse,
                   recuperacao: entradaMesmoDia.recuperacao ?? f.recuperacao,
@@ -889,12 +890,10 @@ export default function CheckinForm() {
             <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Horas de sono (noite anterior)</label>
             <input
               style={inputStyle}
-              type="number"
-              min="0"
-              max="14"
-              step="0.5"
+              type="text"
+              inputMode="decimal"
               value={form.sonoHoras}
-              onChange={(e) => setForm({ ...form, sonoHoras: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, sonoHoras: e.target.value })}
             />
             <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4 }}>Atletas costumam se beneficiar de 7–9h por noite</div>
           </div>

@@ -13,6 +13,7 @@ import {
   paceMinKm,
   ordemChave,
   toneColor,
+  numeroBr,
   MODALIDADE_INPUT,
   type Alerta,
   type CheckinComputed,
@@ -196,7 +197,7 @@ export default function PainelClient() {
       .from("athletes")
       .update({
         idade: editForm.idade ? Number(editForm.idade) : null,
-        peso: editForm.peso ? Number(editForm.peso) : null,
+        peso: editForm.peso ? numeroBr(editForm.peso) : null,
         altura: editForm.altura ? Number(editForm.altura) : null,
         posicao: editForm.posicao.trim() || null,
         historico_lesoes: editForm.historicoLesoes.trim() || null,
@@ -470,9 +471,8 @@ export default function PainelClient() {
                         />
                         <input
                           style={{ ...inputStyle, marginTop: 0 }}
-                          type="number"
-                          min="0"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           placeholder="Peso (kg)"
                           value={editForm.peso}
                           onChange={(e) => setEditForm({ ...editForm, peso: e.target.value })}

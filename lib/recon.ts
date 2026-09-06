@@ -197,8 +197,18 @@ export function formatarDataCurta(dataISO: string): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+// Converte texto digitado num número aceitando vírgula OU ponto como
+// separador decimal. Necessário porque teclado em português usa vírgula
+// (ex: "30,07"), mas Number()/parseFloat() nativos só entendem ponto —
+// sem isso, "30,07" virava 30 (parseFloat) ou NaN (Number), silenciosamente.
+export function numeroBr(v: string | number | null | undefined): number {
+  if (v === null || v === undefined || v === "") return NaN;
+  if (typeof v === "number") return v;
+  return parseFloat(v.trim().replace(",", "."));
+}
+
 export function horasParaEscalaSono(horas: number | string): number {
-  const h = Number(horas);
+  const h = numeroBr(horas);
   if (!h) return 3;
   if (h < 6) return 1;
   if (h < 7) return 2;
@@ -208,13 +218,13 @@ export function horasParaEscalaSono(horas: number | string): number {
 }
 
 export function minutosEfetivos(e: CheckinInput): number {
-  if (MODALIDADE_INPUT[e.modalidade] === "distancia") return parseFloat(String(e.tempoMin ?? "")) || 0;
-  return parseFloat(String(e.minutos ?? "")) || 0;
+  if (MODALIDADE_INPUT[e.modalidade] === "distancia") return numeroBr(e.tempoMin) || 0;
+  return numeroBr(e.minutos) || 0;
 }
 
 export function paceMinKm(e: { distanciaKm?: number | string | null; tempoMin?: number | string | null }): string | null {
-  const dist = parseFloat(String(e.distanciaKm ?? ""));
-  const tempo = parseFloat(String(e.tempoMin ?? ""));
+  const dist = numeroBr(e.distanciaKm);
+  const tempo = numeroBr(e.tempoMin);
   if (!dist || !tempo) return null;
   const pace = tempo / dist;
   const min = Math.floor(pace);
