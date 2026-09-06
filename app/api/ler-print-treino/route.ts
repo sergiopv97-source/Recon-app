@@ -46,6 +46,12 @@ export async function POST(req: Request) {
 
     const vocabulario = MODALIDADES.map((m) => `${m} (tipos possíveis: ${TIPOS_POR_MODALIDADE[m].join(", ")})`).join("; ");
 
+    // O modelo não sabe que dia é "hoje" sozinho (não tem relógio) — sem
+    // isso, ele chuta um ano com base em padrão de treino, o que já causou
+    // erro real (voltou um ano no passado). Informar a data de verdade
+    // resolve isso.
+    const hojeISO = new Date().toISOString().slice(0, 10);
+
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: "claude-haiku-4-5",
@@ -56,13 +62,19 @@ export async function POST(req: Request) {
         "markdown, sem texto antes ou depois. Formato exato:\n" +
         '{"modalidade": string ou null, "tipo": string ou null, "distanciaKm": number ou null, "tempoMin": number ou null, ' +
         '"minutos": number ou null, "data": "AAAA-MM-DD" ou null, "confianca": "alta" ou "media" ou "baixa", "observacao": string ou null}\n\n' +
+        `Hoje é ${hojeISO} — use isso como referência real pra qualquer cálculo de data, nunca chute outro ano. ` +
         `"modalidade" só pode ser um destes valores, ou null se não tiver certeza: ${MODALIDADES.join(", ")}.\n` +
         `"tipo" depende da modalidade escolhida — use um dos tipos válidos dela, ou null: ${vocabulario}.\n` +
         "Se a modalidade for de distância (Corrida ou Bike), preencha distanciaKm e tempoMin (tempo total em MINUTOS " +
         "decimais, convertendo de hh:mm:ss se preciso) e deixe minutos null. Pra qualquer outra modalidade, preencha " +
         "minutos (duração total da sessão) e deixe distanciaKm e tempoMin null. Se o print mostrar uma atividade " +
         'genérica (ex: "Cardio", "Outro", sem dar pra saber o esporte exato), deixe modalidade e tipo null e explique ' +
-        'em "observacao" — não adivinhe o esporte. A data provável é o ano atual, a menos que o print diga outro ano. ' +
+        'em "observacao" — não adivinhe o esporte. Se o título/nome da atividade já diz o esporte claramente (ex: ' +
+        '"Corrida", "Futsal", "Musculação"), preencha modalidade com esse valor — NUNCA deixe modalidade null se você ' +
+        'mesmo identificar o esporte em "observacao"; os dois campos têm que ser consistentes entre si. ' +
+        `A data provável é ${hojeISO} (hoje) ou um dia próximo — só use um ano diferente se o print mostrar esse ano ` +
+        "explicitamente por escrito (não invente, não deduza de memória). Leia o dia e o mês exatamente como aparecem " +
+        "escritos na imagem, dígito por dígito — não calcule ou infira o dia a partir de outra informação. " +
         "A imagem tanto pode ser um print de tela (nítido, texto digital) quanto uma foto tirada da tela física do " +
         "relógio (pode ter reflexo, ângulo, iluminação ruim) — nos dois casos, leia o que der pra ler com confiança. " +
         "Se a foto estiver borrada, com reflexo forte ou ilegível a ponto de não dar pra confiar no número, deixe o " +
