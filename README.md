@@ -186,6 +186,29 @@ que a função ainda não está disponível — o resto do check-in funciona
 normal. Usa o modelo Claude Haiku 4.5 (o mais barato) — cada print
 processado custa uma fração de centavo de dólar.
 
+✅ **Resumo semanal por e-mail** — toda segunda de manhã (10h UTC = 7h em
+Santa Maria), o site manda um e-mail pra você com a situação geral do
+grupo: quantos atletas em cada nível de risco, quem está com alerta
+vermelho no momento, e quem não preenche o check-in há 3 dias ou mais.
+Diferente do aviso de alerta vermelho (que dispara na hora, a cada
+check-in), esse é uma visão panorâmica, uma vez por semana. É opcional —
+precisa de duas variáveis de ambiente novas na Vercel, além das que já
+usam a Resend (`RESEND_API_KEY`, `TRAINER_EMAIL`):
+1. **`SUPABASE_SERVICE_ROLE_KEY`** — no Supabase, vá em **Project Settings
+   (ícone de engrenagem) → API Keys**, e copie a chave marcada como
+   **`service_role`** (não é a mesma chave pública/anon que você já usa —
+   essa aqui é secreta, nunca deve aparecer no navegador. Cole ela direto
+   na Vercel, nunca em nenhum outro lugar).
+2. **`CRON_SECRET`** — uma senha aleatória qualquer, só pra confirmar que
+   quem está chamando essa função é a própria Vercel, não um visitante.
+   Pode gerar uma em qualquer gerador de senha (16+ caracteres já serve).
+3. Na Vercel, em **Project Settings → Environment Variables**, adicione as
+   duas.
+4. Redeploy o site.
+O agendamento em si (toda segunda) já está configurado no código
+(`vercel.json`) — não precisa mexer em nada além das duas variáveis
+acima. Sem elas, o resumo simplesmente não é enviado (nada quebra).
+
 ✅ **Implementado nesta rodada** (os 3 itens combinados):
 
 - **Aviso por e-mail em alerta vermelho** — sempre que um check-in gera um
@@ -369,10 +392,6 @@ esquecido):
 - **PIN pessoal por atleta** — hoje qualquer um pode preencher em nome de
   outro atleta (não tem verificação de identidade real, só o nome). Um
   código de 4 dígitos por atleta resolveria isso.
-- **Resumo semanal por e-mail pro treinador** — diferente do aviso de
-  alerta vermelho (que já existe), um e-mail automático semanal com a
-  situação geral do grupo. Usa a mesma infraestrutura da Resend já
-  configurada.
 - **Exportar todos os atletas numa planilha só** — hoje o relatório em PDF
   é atleta por atleta; uma exportação geral (CSV/Excel) ajudaria pra
   análise própria fora do app.
@@ -407,6 +426,7 @@ esquecido):
   d'água, cor da marca, gráfico), substituindo o resumo em .txt simples
 - Leitura de print de treino via IA (opcional, precisa de conta na
   Anthropic) — pré-preenche modalidade, duração/distância e data
+- Resumo semanal por e-mail pro treinador (opcional, roda toda segunda)
 - Painel: "quem ainda não fez check-in hoje", editar/apagar atleta
 - RLS reforçado: cadastro/check-in sem login só passam pelas funções
   `register_athlete`/`submit_checkin` (não dá pra pular o aceite do termo
@@ -427,4 +447,6 @@ components/PainelClient.tsx → painel do treinador
 app/checkin, app/login, app/painel → páginas do site
 supabase/migrations/0001_init.sql → schema do banco + regras de segurança
 proxy.ts                  → protege o /painel, exige login
+app/api/resumo-semanal/   → e-mail semanal automático (chamado pela Vercel Cron)
+vercel.json                → agenda do resumo semanal (toda segunda)
 ```
