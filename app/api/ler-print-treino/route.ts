@@ -66,7 +66,10 @@ export async function POST(req: Request) {
         `"modalidade" só pode ser um destes valores, ou null se não tiver certeza: ${MODALIDADES.join(", ")}.\n` +
         `"tipo" depende da modalidade escolhida — use um dos tipos válidos dela, ou null: ${vocabulario}.\n` +
         "Se a modalidade for de distância (Corrida ou Bike), preencha distanciaKm e tempoMin (tempo total em MINUTOS " +
-        "decimais, convertendo de hh:mm:ss se preciso) e deixe minutos null. Pra qualquer outra modalidade, preencha " +
+        "decimais — NUNCA arredonde pra minuto inteiro, os segundos importam) e deixe minutos null. A conversão é " +
+        "minutos + segundos/60, com duas casas decimais: um tempo de 39min21s vira exatamente 39.35, não 39. Confira " +
+        "esse cálculo antes de responder — se o valor no campo tempoMin não bater com o tempo que você descreveu em " +
+        '"observacao", tem erro de conta, refaça. Pra qualquer outra modalidade, preencha ' +
         "minutos (duração total da sessão) e deixe distanciaKm e tempoMin null. Se o print mostrar uma atividade " +
         'genérica (ex: "Cardio", "Outro", sem dar pra saber o esporte exato), deixe modalidade e tipo null e explique ' +
         'em "observacao" — não adivinhe o esporte. Se o título/nome da atividade já diz o esporte claramente (ex: ' +
