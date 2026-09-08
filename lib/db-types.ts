@@ -6,9 +6,19 @@ import type { CheckinInput, Modalidade } from "@/lib/recon";
 export interface AthleteRosterRow {
   id: string;
   nome: string;
+  // Se true, o check-in pede o PIN de 4 dígitos antes de deixar continuar
+  // com esse nome (ver verificar_pin_atleta). Atletas cadastrados antes
+  // dessa funcionalidade existir podem não ter PIN ainda.
+  tem_pin: boolean;
 }
 
-export interface AthleteRow extends AthleteRosterRow {
+// Não estende AthleteRosterRow de propósito: essa linha vem de select("*")
+// na tabela real (só o treinador logado lê), que tem pin_hash (o hash em
+// si) em vez de tem_pin (o booleano da view pública) — são shapes
+// diferentes por design, pra nunca vazar o hash pro lado do atleta.
+export interface AthleteRow {
+  id: string;
+  nome: string;
   idade: number | null;
   peso: number | null;
   altura: number | null;
@@ -18,6 +28,7 @@ export interface AthleteRow extends AthleteRosterRow {
   // responsável, exigido pela LGPD).
   responsavel_nome: string | null;
   responsavel_contato: string | null;
+  pin_hash: string | null;
   consentimento_aceito_em: string | null;
   created_at: string;
 }

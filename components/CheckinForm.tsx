@@ -55,6 +55,7 @@ const emptyForm = {
   novoAtletaPosicao: "",
   novoAtletaResponsavelNome: "",
   novoAtletaResponsavelContato: "",
+  novoAtletaPin: "",
   aceitouTermos: false,
   data: new Date().toISOString().slice(0, 10),
   modalidade: "Futsal" as Modalidade,
@@ -93,9 +94,14 @@ export default function CheckinForm() {
 
   // Fluxo em etapas: primeiro a pessoa se identifica (nome), só depois vê o
   // questionário do dia — evita a sensação de "formulário gigante de cara"
-  // e deixa claro que a identificação é uma etapa própria.
-  const [etapa, setEtapa] = useState<"nome" | "cadastro" | "checkin">("nome");
+  // e deixa claro que a identificação é uma etapa própria. A etapa "pin"
+  // só aparece pra atletas que já têm PIN definido (tem_pin na lista) —
+  // confirma que quem selecionou o nome é realmente aquele atleta.
+  const [etapa, setEtapa] = useState<"nome" | "cadastro" | "pin" | "checkin">("nome");
   const [buscaNome, setBuscaNome] = useState("");
+  const [pinDigitado, setPinDigitado] = useState("");
+  const [pinErro, setPinErro] = useState("");
+  const [verificandoPin, setVerificandoPin] = useState(false);
   const [verHistorico, setVerHistorico] = useState(false);
   const [recadoGeral, setRecadoGeral] = useState<RecadoRow | null>(null);
   const [recadoPessoal, setRecadoPessoal] = useState<RecadoRow | null>(null);
@@ -129,7 +135,7 @@ export default function CheckinForm() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("athletes_roster").select("id, nome").order("nome", { ascending: true });
+      const { data, error } = await supabase.from("athletes_roster").select("id, nome, tem_pin").order("nome", { ascending: true });
       if (!error && data) {
         setRoster(data);
         try {
@@ -188,8 +194,13 @@ export default function CheckinForm() {
   function selecionarAtleta(a: AthleteRosterRow) {
     setForm({ ...form, atleta: a.id });
     setBuscaNome(a.nome);
-    setEtapa("checkin");
-    salvarAtletaLocal(a.id);
+    setPinDigitado("");
+    setPinErro("");
+    // Atleta sem PIN definido ainda (cadastrado antes dessa funcionalidade
+    // existir) passa direto — o treinador pode definir um PIN pra ele
+    // depois, pelo painel.
+    setEtapa(a.tem_pin ? "pin" : "checkin");
+    if (!a.tem_pin) salvarAtletaLocal(a.id);
   }
 
   function iniciarCadastro() {
@@ -197,9 +208,29 @@ export default function CheckinForm() {
     setEtapa("cadastro");
   }
 
+  async function confirmarPin() {
+    setVerificandoPin(true);
+    setPinErro("");
+    try {
+      const { data, error } = await supabase.rpc("verificar_pin_atleta", { p_athlete_id: form.atleta, p_pin: pinDigitado });
+      if (error || !data) {
+        setPinErro("PIN incorreto. Confere com quem cadastrou o seu e tenta de novo.");
+        return;
+      }
+      setEtapa("checkin");
+      salvarAtletaLocal(form.atleta);
+    } catch {
+      setPinErro("Não consegui verificar o PIN agora. Tenta de novo.");
+    } finally {
+      setVerificandoPin(false);
+    }
+  }
+
   function trocarAtleta() {
     setForm(emptyForm);
     setBuscaNome("");
+    setPinDigitado("");
+    setPinErro("");
     setEtapa("nome");
     setVerHistorico(false);
     limparAtletaLocal();
@@ -341,6 +372,11 @@ export default function CheckinForm() {
           setSaving(false);
           return;
         }
+        if (!/^\d{4}$/.test(form.novoAtletaPin)) {
+          setErrorMsg("Crie um PIN de exatamente 4 dígitos pra proteger seu cadastro.");
+          setSaving(false);
+          return;
+        }
         const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
           p_nome: nomeFinal,
           p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
@@ -351,11 +387,12 @@ export default function CheckinForm() {
           p_consentimento_aceito: true,
           p_responsavel_nome: isMinor ? form.novoAtletaResponsavelNome.trim() : null,
           p_responsavel_contato: isMinor ? form.novoAtletaResponsavelContato.trim() : null,
+          p_pin: form.novoAtletaPin,
         });
         const novoAtletaRow = inserted?.[0];
         if (insertErr || !novoAtletaRow) throw insertErr ?? new Error("Não foi possível cadastrar o atleta.");
         athleteId = novoAtletaRow.id;
-        setRoster((prev) => [...prev, novoAtletaRow].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+        setRoster((prev) => [...prev, { ...novoAtletaRow, tem_pin: true }].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
         salvarAtletaLocal(athleteId);
       }
 
@@ -606,22 +643,86 @@ export default function CheckinForm() {
             </div>
           )}
 
+          <div style={{ marginTop: 16 }}>
+            <label style={{ fontSize: 15, color: "#14201F", fontWeight: 500 }}>Crie um PIN de 4 dígitos</label>
+            <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4, marginBottom: 8 }}>
+              Vai pedir esse PIN da próxima vez que você entrar por um aparelho diferente — assim ninguém preenche o
+              check-in fingindo ser você. Guarde um número fácil de lembrar.
+            </div>
+            <input
+              style={inputStyle}
+              type="text"
+              inputMode="numeric"
+              maxLength={4}
+              placeholder="ex: 1234"
+              value={form.novoAtletaPin}
+              onChange={(e) => setForm({ ...form, novoAtletaPin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+            />
+          </div>
+
           <div style={{ marginTop: 16, marginBottom: 16 }}>
             <TermoConsentimento aceito={form.aceitouTermos} onChangeAceito={(v) => setForm({ ...form, aceitouTermos: v })} isMinor={isMinor} />
           </div>
           <button
             type="button"
-            disabled={!form.aceitouTermos || (isMinor && !responsavelPreenchido)}
+            disabled={!form.aceitouTermos || (isMinor && !responsavelPreenchido) || !/^\d{4}$/.test(form.novoAtletaPin)}
             onClick={() => setEtapa("checkin")}
             style={{
               ...primaryButtonStyle,
               width: "100%",
-              opacity: form.aceitouTermos && (!isMinor || responsavelPreenchido) ? 1 : 0.5,
-              cursor: form.aceitouTermos && (!isMinor || responsavelPreenchido) ? "pointer" : "not-allowed",
+              opacity: form.aceitouTermos && (!isMinor || responsavelPreenchido) && /^\d{4}$/.test(form.novoAtletaPin) ? 1 : 0.5,
+              cursor: form.aceitouTermos && (!isMinor || responsavelPreenchido) && /^\d{4}$/.test(form.novoAtletaPin) ? "pointer" : "not-allowed",
             }}
           >
             Continuar
           </button>
+        </div>
+      )}
+
+      {etapa === "pin" && (
+        <div style={{ marginBottom: 18 }}>
+          <button
+            type="button"
+            onClick={trocarAtleta}
+            style={{ background: "none", border: "none", color: "#5B6664", fontSize: 12, marginBottom: 10, cursor: "pointer", padding: 0 }}
+          >
+            ‹ trocar nome
+          </button>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Olá, {buscaNome} — digite seu PIN</div>
+          <div style={{ fontSize: 12.5, color: "#5B6664", marginBottom: 12 }}>
+            Só pra confirmar que é você mesmo. Depois disso, esse aparelho fica lembrado e não vai pedir de novo.
+          </div>
+          <input
+            style={{ ...inputStyle, fontSize: 22, letterSpacing: 8, textAlign: "center" }}
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            autoFocus
+            value={pinDigitado}
+            onChange={(e) => setPinDigitado(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && pinDigitado.length === 4) {
+                e.preventDefault();
+                confirmarPin();
+              }
+            }}
+            placeholder="••••"
+          />
+          <button
+            type="button"
+            disabled={pinDigitado.length !== 4 || verificandoPin}
+            onClick={confirmarPin}
+            style={{
+              ...primaryButtonStyle,
+              width: "100%",
+              marginTop: 14,
+              opacity: pinDigitado.length === 4 && !verificandoPin ? 1 : 0.5,
+              cursor: pinDigitado.length === 4 && !verificandoPin ? "pointer" : "not-allowed",
+            }}
+          >
+            {verificandoPin ? "Verificando…" : "Confirmar"}
+          </button>
+          {pinErro && <div style={{ marginTop: 10, fontSize: 13, color: "#B23A32", textAlign: "center" }}>{pinErro}</div>}
         </div>
       )}
 

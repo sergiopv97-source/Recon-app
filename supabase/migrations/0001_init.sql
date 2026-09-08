@@ -24,14 +24,21 @@ create table if not exists public.athletes (
   -- (LGPD exige consentimento do responsável, não do próprio menor).
   responsavel_nome text,
   responsavel_contato text,
+  -- Hash do PIN de 4 dígitos (nunca o PIN em texto puro) — verificado na
+  -- função verificar_pin_atleta mais abaixo, pra confirmar que quem está
+  -- selecionando o nome na lista é realmente aquele atleta, não outra
+  -- pessoa. Atletas cadastrados antes dessa funcionalidade existir ficam
+  -- com isso nulo (sem PIN) até o treinador definir um pelo painel.
+  pin_hash text,
   consentimento_aceito_em timestamptz,
   created_at timestamptz not null default now()
 );
 
 -- Caso a tabela já exista de uma instalação anterior (antes dos campos de
--- responsável serem adicionados), garante que as colunas novas existam.
+-- responsável/PIN serem adicionados), garante que as colunas novas existam.
 alter table public.athletes add column if not exists responsavel_nome text;
 alter table public.athletes add column if not exists responsavel_contato text;
+alter table public.athletes add column if not exists pin_hash text;
 
 alter table public.athletes enable row level security;
 
@@ -62,10 +69,12 @@ create policy "athletes: treinador apaga" on public.athletes
 
 -- View pública só com o essencial pra montar a lista "selecione seu nome" do
 -- check-in, sem expor idade/peso/lesões de ninguém pra quem não é o treinador.
+-- "tem_pin" é só um booleano (nunca o hash em si) — o app usa isso pra saber
+-- se precisa pedir o PIN antes de deixar continuar com aquele nome.
 create or replace view public.athletes_roster
   with (security_invoker = true)
   as
-  select id, nome from public.athletes;
+  select id, nome, (pin_hash is not null) as tem_pin from public.athletes;
 
 grant select on public.athletes_roster to public;
 
@@ -238,11 +247,14 @@ grant execute on function public.get_own_recent_checkins(uuid) to public;
 -- isso, o cadastro é recusado mesmo que alguém tente pular a tela pelo app.
 -- Se o atleta for menor de idade (p_idade < 18), também exige nome e
 -- contato do responsável — o consentimento de um menor sozinho não é
--- válido perante a LGPD.
+-- válido perante a LGPD. Também exige um PIN de 4 dígitos (p_pin) —
+-- guardado só como hash (nunca em texto puro), usado depois pra confirmar
+-- que quem seleciona esse nome na lista é realmente esse atleta.
 -- (o "drop" abaixo remove versões antigas desta função, com uma lista de
 -- parâmetros diferente, pra não deixar duas versões ambíguas coexistindo)
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text);
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean);
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text);
 
 create or replace function public.register_athlete(
   p_nome text,
@@ -253,7 +265,8 @@ create or replace function public.register_athlete(
   p_historico_lesoes text default null,
   p_consentimento_aceito boolean default false,
   p_responsavel_nome text default null,
-  p_responsavel_contato text default null
+  p_responsavel_contato text default null,
+  p_pin text default null
 )
 returns table (id uuid, nome text)
 language plpgsql
@@ -269,14 +282,63 @@ begin
     raise exception 'Atleta menor de idade: é necessário informar nome e contato do responsável.';
   end if;
 
+  if p_pin !~ '^\d{4}$' then
+    raise exception 'É necessário criar um PIN de exatamente 4 dígitos.';
+  end if;
+
   return query
-    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, consentimento_aceito_em)
-    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, now())
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, pin_hash, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, crypt(p_pin, gen_salt('bf')), now())
     returning athletes.id, athletes.nome;
 end;
 $$;
 
-grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text) to public;
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text, text) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: verificar_pin_atleta
+-- -----------------------------------------------------------------------------
+-- Confirma se o PIN digitado bate com o hash guardado daquele atleta —
+-- chamada pelo check-in antes de deixar continuar com um nome selecionado
+-- na lista, pra dificultar que alguém preencha em nome de outra pessoa só
+-- por saber o nome dela. Devolve só true/false, nunca o hash em si.
+create or replace function public.verificar_pin_atleta(p_athlete_id uuid, p_pin text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select case when pin_hash is null then false else pin_hash = crypt(p_pin, pin_hash) end
+  from public.athletes
+  where id = p_athlete_id;
+$$;
+
+grant execute on function public.verificar_pin_atleta(uuid, text) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: definir_pin_atleta
+-- -----------------------------------------------------------------------------
+-- Deixa o treinador definir ou redefinir o PIN de um atleta (útil pros
+-- atletas cadastrados antes dessa funcionalidade existir, ou se alguém
+-- esquecer o PIN). Só o treinador logado pode chamar isso — nunca o atleta
+-- sem login (por isso o grant é só "to authenticated", diferente das
+-- outras funções deste arquivo que são "to public").
+create or replace function public.definir_pin_atleta(p_athlete_id uuid, p_pin text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_pin !~ '^\d{4}$' then
+    raise exception 'PIN precisa ter exatamente 4 dígitos.';
+  end if;
+
+  update public.athletes set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_athlete_id;
+end;
+$$;
+
+grant execute on function public.definir_pin_atleta(uuid, text) to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Função: submit_checkin

@@ -209,6 +209,101 @@ O agendamento em si (toda segunda) já está configurado no código
 (`vercel.json`) — não precisa mexer em nada além das duas variáveis
 acima. Sem elas, o resumo simplesmente não é enviado (nada quebra).
 
+✅ **PIN por atleta** — resolve a falha de identidade que existia desde o
+início: qualquer um podia preencher o check-in em nome de outro atleta só
+sabendo o nome dele. Agora, todo atleta cadastrado a partir de hoje cria
+um PIN de 4 dígitos no cadastro; da próxima vez que selecionar o nome dele
+num aparelho novo, o site pede esse PIN antes de deixar continuar (uma vez
+confirmado, aquele aparelho fica lembrado, não pede de novo toda vez).
+**Atletas cadastrados antes dessa atualização não têm PIN ainda** — pra
+proteger o cadastro deles também, entre no painel, abra o atleta e clique
+em **"Definir PIN"**, combinando o número com ele. Sem PIN definido, o
+nome dele continua funcionando como antes (sem essa proteção extra), pra
+não travar ninguém de repente.
+
+Pra ativar, rode esse SQL no **Supabase SQL Editor** (seguro rodar com
+dados existentes):
+
+```sql
+alter table public.athletes add column if not exists pin_hash text;
+
+create or replace view public.athletes_roster
+  with (security_invoker = true)
+  as
+  select id, nome, (pin_hash is not null) as tem_pin from public.athletes;
+
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text);
+
+create or replace function public.register_athlete(
+  p_nome text,
+  p_idade integer default null,
+  p_peso numeric default null,
+  p_altura numeric default null,
+  p_posicao text default null,
+  p_historico_lesoes text default null,
+  p_consentimento_aceito boolean default false,
+  p_responsavel_nome text default null,
+  p_responsavel_contato text default null,
+  p_pin text default null
+)
+returns table (id uuid, nome text)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not p_consentimento_aceito then
+    raise exception 'É necessário aceitar o termo de consentimento para se cadastrar.';
+  end if;
+
+  if p_idade is not null and p_idade < 18 and (p_responsavel_nome is null or trim(p_responsavel_nome) = '' or p_responsavel_contato is null or trim(p_responsavel_contato) = '') then
+    raise exception 'Atleta menor de idade: é necessário informar nome e contato do responsável.';
+  end if;
+
+  if p_pin !~ '^\d{4}$' then
+    raise exception 'É necessário criar um PIN de exatamente 4 dígitos.';
+  end if;
+
+  return query
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, pin_hash, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, crypt(p_pin, gen_salt('bf')), now())
+    returning athletes.id, athletes.nome;
+end;
+$$;
+
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text, text) to public;
+
+create or replace function public.verificar_pin_atleta(p_athlete_id uuid, p_pin text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select case when pin_hash is null then false else pin_hash = crypt(p_pin, pin_hash) end
+  from public.athletes
+  where id = p_athlete_id;
+$$;
+
+grant execute on function public.verificar_pin_atleta(uuid, text) to public;
+
+create or replace function public.definir_pin_atleta(p_athlete_id uuid, p_pin text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_pin !~ '^\d{4}$' then
+    raise exception 'PIN precisa ter exatamente 4 dígitos.';
+  end if;
+
+  update public.athletes set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_athlete_id;
+end;
+$$;
+
+grant execute on function public.definir_pin_atleta(uuid, text) to authenticated;
+```
+
 ✅ **Implementado nesta rodada** (os 3 itens combinados):
 
 - **Aviso por e-mail em alerta vermelho** — sempre que um check-in gera um
@@ -389,9 +484,6 @@ esquecido):
   aparece no painel ("Check-in de hoje"). Envolve configurar um app
   instalável (PWA) + um aviso agendado (cron) — é mais trabalhoso que o
   resto, por isso ficou pra depois.
-- **PIN pessoal por atleta** — hoje qualquer um pode preencher em nome de
-  outro atleta (não tem verificação de identidade real, só o nome). Um
-  código de 4 dígitos por atleta resolveria isso.
 - **Exportar todos os atletas numa planilha só** — hoje o relatório em PDF
   é atleta por atleta; uma exportação geral (CSV/Excel) ajudaria pra
   análise própria fora do app.
@@ -427,6 +519,8 @@ esquecido):
 - Leitura de print de treino via IA (opcional, precisa de conta na
   Anthropic) — pré-preenche modalidade, duração/distância e data
 - Resumo semanal por e-mail pro treinador (opcional, roda toda segunda)
+- PIN de 4 dígitos por atleta — confirma identidade antes de liberar o
+  check-in num aparelho novo
 - Painel: "quem ainda não fez check-in hoje", editar/apagar atleta
 - RLS reforçado: cadastro/check-in sem login só passam pelas funções
   `register_athlete`/`submit_checkin` (não dá pra pular o aceite do termo

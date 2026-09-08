@@ -22,6 +22,7 @@ import {
 import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
 import { gerarResumoPdf, carregarLogoBase64 } from "@/lib/pdfResumo";
+import { errorMessage } from "@/lib/errors";
 import Badge from "@/components/Badge";
 import HistoricoChart from "@/components/HistoricoChart";
 
@@ -50,6 +51,10 @@ export default function PainelClient() {
   const [novoRecado, setNovoRecado] = useState("");
   const [destinatarioRecado, setDestinatarioRecado] = useState(""); // "" = todos
   const [salvandoRecado, setSalvandoRecado] = useState(false);
+  const [pinAtletaId, setPinAtletaId] = useState<string | null>(null);
+  const [pinValor, setPinValor] = useState("");
+  const [salvandoPin, setSalvandoPin] = useState(false);
+  const [pinMsg, setPinMsg] = useState("");
 
   async function load() {
     setLoading(true);
@@ -217,6 +222,27 @@ export default function PainelClient() {
       setExpanded(null);
       load();
     }
+  }
+
+  // Definir/redefinir o PIN de um atleta — usado pros que foram cadastrados
+  // antes dessa funcionalidade existir (ainda sem PIN), ou se alguém
+  // esquecer o próprio PIN.
+  async function definirPin(athleteId: string, pin: string) {
+    if (!/^\d{4}$/.test(pin)) {
+      setPinMsg("O PIN precisa ter exatamente 4 dígitos.");
+      return;
+    }
+    setSalvandoPin(true);
+    const { error } = await supabase.rpc("definir_pin_atleta", { p_athlete_id: athleteId, p_pin: pin });
+    setSalvandoPin(false);
+    if (error) {
+      setPinMsg("Não consegui salvar o PIN: " + errorMessage(error));
+      return;
+    }
+    setPinMsg("PIN salvo.");
+    setPinAtletaId(null);
+    setPinValor("");
+    load();
   }
 
   // A logo só precisa ser carregada uma vez (fica em cache aqui) — cada PDF
@@ -541,7 +567,15 @@ export default function PainelClient() {
                           <span style={{ color: "#B23A32" }}>ainda não aceito</span>
                         )}
                       </div>
-                      <div style={{ display: "flex", gap: 14 }}>
+                      <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 10 }}>
+                        PIN de identificação:{" "}
+                        {infoAtleta.pin_hash ? (
+                          <span style={{ color: "#2F7D52" }}>definido</span>
+                        ) : (
+                          <span style={{ color: "#B9812E" }}>ainda não definido — qualquer um pode selecionar esse nome</span>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                         <button
                           type="button"
                           onClick={() => iniciarEdicao(infoAtleta)}
@@ -551,12 +585,71 @@ export default function PainelClient() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => {
+                            setPinAtletaId(athleteId);
+                            setPinValor("");
+                            setPinMsg("");
+                          }}
+                          style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                        >
+                          {infoAtleta.pin_hash ? "Redefinir PIN" : "Definir PIN"}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => apagarAtleta(athleteId, infoAtleta.nome)}
                           style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
                         >
                           Apagar atleta
                         </button>
                       </div>
+
+                      {pinAtletaId === athleteId && (
+                        <div style={{ marginTop: 10, padding: "10px 12px", background: "#F7F8F7", border: "1px solid #DCE3E1", borderRadius: 6 }}>
+                          <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 8 }}>
+                            Combine esse PIN com {infoAtleta.nome} antes de salvar — é ele quem vai usar pra se identificar.
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <input
+                              style={{ ...inputStyle, marginTop: 0, width: 100, textAlign: "center", letterSpacing: 4 }}
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              placeholder="1234"
+                              value={pinValor}
+                              onChange={(e) => setPinValor(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                            />
+                            <button
+                              type="button"
+                              disabled={salvandoPin || pinValor.length !== 4}
+                              onClick={() => definirPin(athleteId, pinValor)}
+                              style={{
+                                padding: "0 14px",
+                                background: "#297379",
+                                border: "none",
+                                borderRadius: 6,
+                                color: "#FFFFFF",
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: pinValor.length === 4 && !salvandoPin ? "pointer" : "not-allowed",
+                                opacity: pinValor.length === 4 && !salvandoPin ? 1 : 0.6,
+                              }}
+                            >
+                              {salvandoPin ? "Salvando…" : "Salvar"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPinAtletaId(null);
+                                setPinMsg("");
+                              }}
+                              style={{ padding: "0 14px", background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 6, color: "#5B6664", fontSize: 13, cursor: "pointer" }}
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                          {pinMsg && <div style={{ marginTop: 8, fontSize: 12, color: pinMsg.startsWith("PIN salvo") ? "#2F7D52" : "#B23A32" }}>{pinMsg}</div>}
+                        </div>
+                      )}
                     </>
                   )}
 
