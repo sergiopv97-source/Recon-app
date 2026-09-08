@@ -79,6 +79,7 @@ export default function CheckinForm() {
   const supabase = useMemo(() => createClient(), []);
   const [roster, setRoster] = useState<AthleteRosterRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -106,15 +107,42 @@ export default function CheckinForm() {
   const [recadoGeral, setRecadoGeral] = useState<RecadoRow | null>(null);
   const [recadoPessoal, setRecadoPessoal] = useState<RecadoRow | null>(null);
 
-  // Recado pra todo mundo (athlete_id nulo) — dá pra buscar antes de saber
-  // quem é o atleta.
+  // De qual profissional é esse check-in. Enquanto só existir um
+  // profissional cadastrado, o site descobre isso sozinho (get_owner_padrao)
+  // — quando tiver vários, cada um vai ter seu próprio link e isso muda pra
+  // vir da URL em vez de uma função "padrão".
+  const [ownerPadrao, setOwnerPadrao] = useState<string | null>(null);
+
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.from("recados").select("*").is("athlete_id", null).order("criado_em", { ascending: false }).limit(1);
-      if (!error && data && data[0]) setRecadoGeral(data[0] as RecadoRow);
+      const { data, error } = await supabase.rpc("get_owner_padrao");
+      if (!error && data) {
+        setOwnerPadrao(data);
+      } else {
+        setErroCarregamento("Não consegui carregar o check-in agora. Tenta atualizar a página em alguns minutos.");
+        setLoading(false);
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Recado pra todo mundo (athlete_id nulo) — dá pra buscar antes de saber
+  // quem é o atleta, mas só depois de saber de qual profissional é (senão
+  // apareceria recado de outro profissional, quando existir mais de um).
+  useEffect(() => {
+    if (!ownerPadrao) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("recados")
+        .select("*")
+        .is("athlete_id", null)
+        .eq("owner_id", ownerPadrao)
+        .order("criado_em", { ascending: false })
+        .limit(1);
+      if (!error && data && data[0]) setRecadoGeral(data[0] as RecadoRow);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerPadrao]);
 
   // Recado só pra esse atleta específico — busca de novo assim que ele se
   // identifica.
@@ -134,8 +162,13 @@ export default function CheckinForm() {
   }, [form.atleta, supabase]);
 
   useEffect(() => {
+    if (!ownerPadrao) return;
     (async () => {
-      const { data, error } = await supabase.from("athletes_roster").select("id, nome, tem_pin").order("nome", { ascending: true });
+      const { data, error } = await supabase
+        .from("athletes_roster")
+        .select("id, nome, owner_id, tem_pin")
+        .eq("owner_id", ownerPadrao)
+        .order("nome", { ascending: true });
       if (!error && data) {
         setRoster(data);
         try {
@@ -151,7 +184,7 @@ export default function CheckinForm() {
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ownerPadrao]);
 
   // Busca os últimos check-ins do próprio atleta selecionado, pra calcular a
   // "orientação de hoje" (autocuidado) — não expõe dados de outros atletas.
@@ -377,8 +410,14 @@ export default function CheckinForm() {
           setSaving(false);
           return;
         }
+        if (!ownerPadrao) {
+          setErrorMsg("Não consegui identificar o profissional responsável. Atualiza a página e tenta de novo.");
+          setSaving(false);
+          return;
+        }
         const { data: inserted, error: insertErr } = await supabase.rpc("register_athlete", {
           p_nome: nomeFinal,
+          p_owner_id: ownerPadrao,
           p_idade: form.novoAtletaIdade ? Number(form.novoAtletaIdade) : null,
           p_peso: form.novoAtletaPeso ? numeroBr(form.novoAtletaPeso) : null,
           p_altura: form.novoAtletaAltura ? Number(form.novoAtletaAltura) : null,
@@ -458,6 +497,10 @@ export default function CheckinForm() {
       setSaving(false);
       setTimeout(() => setSavedMsg(""), 4000);
     }
+  }
+
+  if (erroCarregamento) {
+    return <div style={{ color: "#B23A32", padding: 40, textAlign: "center" }}>{erroCarregamento}</div>;
   }
 
   if (loading) {

@@ -6,6 +6,9 @@ import type { CheckinInput, Modalidade } from "@/lib/recon";
 export interface AthleteRosterRow {
   id: string;
   nome: string;
+  // De qual profissional é esse atleta — usado pra filtrar a lista pelo
+  // profissional certo (ver get_owner_padrao em lib/recon.ts/CheckinForm).
+  owner_id: string;
   // Se true, o check-in pede o PIN de 4 dígitos antes de deixar continuar
   // com esse nome (ver verificar_pin_atleta). Atletas cadastrados antes
   // dessa funcionalidade existir podem não ter PIN ainda.
@@ -29,6 +32,7 @@ export interface AthleteRow {
   responsavel_nome: string | null;
   responsavel_contato: string | null;
   pin_hash: string | null;
+  owner_id: string | null;
   consentimento_aceito_em: string | null;
   created_at: string;
 }

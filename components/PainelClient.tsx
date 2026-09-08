@@ -58,11 +58,20 @@ export default function PainelClient() {
 
   async function load() {
     setLoading(true);
+    // recados tem leitura liberada pra qualquer um no banco (o atleta sem
+    // login precisa ler o mural), então aqui no painel a gente tem que
+    // filtrar na mão pelo profissional logado — senão, com mais de um
+    // profissional cadastrado, o painel mostraria o mural de todo mundo.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const [a, c, l, r] = await Promise.all([
       supabase.from("athletes").select("*").order("nome", { ascending: true }),
       supabase.from("checkins").select("*"),
       supabase.from("injuries").select("*"),
-      supabase.from("recados").select("*").order("criado_em", { ascending: false }),
+      user
+        ? supabase.from("recados").select("*").eq("owner_id", user.id).order("criado_em", { ascending: false })
+        : Promise.resolve({ data: null } as { data: RecadoRow[] | null }),
     ]);
     if (a.data) setAthletes(a.data as AthleteRow[]);
     if (c.data) setCheckins(c.data as CheckinRow[]);

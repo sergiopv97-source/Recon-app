@@ -9,11 +9,43 @@
 create extension if not exists "pgcrypto";
 
 -- -----------------------------------------------------------------------------
+-- Tabela: professionals (fisioterapeutas/educadores físicos que usam o Recon)
+-- -----------------------------------------------------------------------------
+-- Base pra evoluir de "um treinador só" (você) pra vários profissionais
+-- independentes, cada um com seus próprios atletas/pacientes — sem que um
+-- enxergue os dados do outro. Por enquanto só você existe aqui; o cadastro
+-- de novos profissionais é uma etapa futura. O "id" é o mesmo id do login
+-- (auth.users) — não é uma tabela de senha própria, só um perfil.
+create table if not exists public.professionals (
+  id uuid primary key references auth.users (id) on delete cascade,
+  nome text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.professionals enable row level security;
+
+create policy "professionals: le o proprio perfil" on public.professionals
+  for select
+  to authenticated
+  using (id = auth.uid());
+
+-- Garante que você (o único profissional até agora) tem uma linha aqui —
+-- sem isso, get_owner_padrao() mais abaixo não tem o que devolver.
+insert into public.professionals (id, nome)
+select id, 'Sergio Vargas'
+from auth.users
+where email = 'sergiopv97@gmail.com'
+on conflict (id) do nothing;
+
+-- -----------------------------------------------------------------------------
 -- Tabela: athletes (atletas/pacientes)
 -- -----------------------------------------------------------------------------
 create table if not exists public.athletes (
   id uuid primary key default gen_random_uuid(),
-  nome text not null unique,
+  -- Único só DENTRO do mesmo profissional (ver constraint mais abaixo) —
+  -- dois profissionais diferentes podem cada um ter um atleta "João Silva"
+  -- sem conflito.
+  nome text not null,
   idade integer,
   peso numeric,
   altura numeric,
@@ -30,15 +62,38 @@ create table if not exists public.athletes (
   -- pessoa. Atletas cadastrados antes dessa funcionalidade existir ficam
   -- com isso nulo (sem PIN) até o treinador definir um pelo painel.
   pin_hash text,
+  -- De qual profissional é esse atleta — é isso que separa os dados de um
+  -- profissional dos de outro. Referencia o login (auth.users) dele.
+  owner_id uuid references auth.users (id) on delete cascade,
   consentimento_aceito_em timestamptz,
   created_at timestamptz not null default now()
 );
 
 -- Caso a tabela já exista de uma instalação anterior (antes dos campos de
--- responsável/PIN serem adicionados), garante que as colunas novas existam.
+-- responsável/PIN/owner_id serem adicionados), garante que as colunas
+-- novas existam, e preenche owner_id nos atletas que já existiam (todos
+-- seus, já que até agora só existia um profissional).
 alter table public.athletes add column if not exists responsavel_nome text;
 alter table public.athletes add column if not exists responsavel_contato text;
 alter table public.athletes add column if not exists pin_hash text;
+alter table public.athletes add column if not exists owner_id uuid references auth.users (id) on delete cascade;
+
+update public.athletes
+set owner_id = (select id from auth.users where email = 'sergiopv97@gmail.com' limit 1)
+where owner_id is null;
+
+-- Troca o "nome único em toda a tabela" (de uma instalação anterior, só
+-- com um profissional) por "nome único por profissional" — sem isso, dois
+-- profissionais nunca poderiam ter cada um um atleta com o mesmo nome.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'athletes_owner_id_nome_key'
+  ) then
+    alter table public.athletes drop constraint if exists athletes_nome_key;
+    alter table public.athletes add constraint athletes_owner_id_nome_key unique (owner_id, nome);
+  end if;
+end $$;
 
 alter table public.athletes enable row level security;
 
@@ -50,31 +105,35 @@ alter table public.athletes enable row level security;
 -- só a função (que roda com privilégio elevado e ignora RLS).
 
 -- Só o treinador logado enxerga os dados completos do cadastro (idade, peso,
--- lesões prévias etc). Atletas sem login NÃO leem esta tabela diretamente —
--- eles usam a view "athletes_roster" abaixo, que expõe só o nome.
-create policy "athletes: treinador le tudo" on public.athletes
+-- lesões prévias etc), e só os PRÓPRIOS atletas dele (owner_id = quem está
+-- logado) — nunca os de outro profissional. Atletas sem login NÃO leem esta
+-- tabela diretamente — eles usam a view "athletes_roster" abaixo, que expõe
+-- só o nome.
+create policy "athletes: treinador le os proprios" on public.athletes
   for select
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
-create policy "athletes: treinador atualiza" on public.athletes
+create policy "athletes: treinador atualiza os proprios" on public.athletes
   for update
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
-create policy "athletes: treinador apaga" on public.athletes
+create policy "athletes: treinador apaga os proprios" on public.athletes
   for delete
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
 -- View pública só com o essencial pra montar a lista "selecione seu nome" do
 -- check-in, sem expor idade/peso/lesões de ninguém pra quem não é o treinador.
 -- "tem_pin" é só um booleano (nunca o hash em si) — o app usa isso pra saber
 -- se precisa pedir o PIN antes de deixar continuar com aquele nome.
+-- "owner_id" é exposto porque o check-in precisa filtrar a lista pelo
+-- profissional certo (não é dado sensível, é só um id de referência).
 create or replace view public.athletes_roster
   with (security_invoker = true)
   as
-  select id, nome, (pin_hash is not null) as tem_pin from public.athletes;
+  select id, nome, owner_id, (pin_hash is not null) as tem_pin from public.athletes;
 
 grant select on public.athletes_roster to public;
 
@@ -100,6 +159,10 @@ create table if not exists public.checkins (
   recuperacao integer,
   regiao_dor text,
   observacoes text,
+  -- Mesmo dono do atleta (duplicado aqui, não só em athletes) — deixa a
+  -- regra de segurança abaixo simples e rápida, sem precisar cruzar com a
+  -- tabela athletes toda vez que alguém lê um check-in.
+  owner_id uuid references auth.users (id) on delete cascade,
   created_at timestamptz not null default now(),
   -- Antes era "unique (athlete_id, data)" (só 1 check-in por atleta por dia).
   -- Agora permite mais de uma sessão no mesmo dia (ex: treino de manhã +
@@ -122,6 +185,14 @@ begin
   end if;
 end $$;
 
+-- Caso a tabela já exista de uma instalação anterior (antes do owner_id
+-- existir), garante a coluna e preenche a partir do dono do atleta.
+alter table public.checkins add column if not exists owner_id uuid references auth.users (id) on delete cascade;
+update public.checkins c
+set owner_id = a.owner_id
+from public.athletes a
+where c.athlete_id = a.id and c.owner_id is null;
+
 alter table public.checkins enable row level security;
 
 -- Assim como em athletes, o envio de check-in sem login passa SÓ pela
@@ -133,16 +204,17 @@ alter table public.checkins enable row level security;
 -- consegue LER a tabela de check-ins (só consegue inserir/atualizar o próprio).
 -- O carinho de "orientação de hoje" que o atleta vê logo após enviar o
 -- check-in é resolvido por uma função (RPC) separada mais abaixo, que devolve
--- só os dados daquele atleta específico — nunca de outra pessoa.
-create policy "checkins: treinador le tudo" on public.checkins
+-- só os dados daquele atleta específico — nunca de outra pessoa. O treinador
+-- só vê os check-ins dos PRÓPRIOS atletas (owner_id = quem está logado).
+create policy "checkins: treinador le os proprios" on public.checkins
   for select
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
-create policy "checkins: treinador apaga" on public.checkins
+create policy "checkins: treinador apaga os proprios" on public.checkins
   for delete
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
 -- -----------------------------------------------------------------------------
 -- Tabela: recados (mural do treinador pros atletas)
@@ -154,27 +226,43 @@ create table if not exists public.recados (
   id uuid primary key default gen_random_uuid(),
   mensagem text not null,
   athlete_id uuid references public.athletes (id) on delete cascade,
+  -- De qual profissional é esse recado — preenchido sozinho (default) com
+  -- quem estiver logado publicando, então o painel não precisa mandar isso
+  -- explicitamente. Precisa ser exposto na leitura (fica aberta pra
+  -- qualquer um) porque o check-in filtra por profissional no app.
+  owner_id uuid references auth.users (id) on delete cascade default auth.uid(),
   criado_em timestamptz not null default now()
 );
+
+alter table public.recados add column if not exists owner_id uuid references auth.users (id) on delete cascade default auth.uid();
+alter table public.recados alter column owner_id set default auth.uid();
+update public.recados r
+set owner_id = coalesce(
+  (select a.owner_id from public.athletes a where a.id = r.athlete_id),
+  (select id from auth.users where email = 'sergiopv97@gmail.com' limit 1)
+)
+where owner_id is null;
 
 alter table public.recados enable row level security;
 
 -- Leitura aberta pra qualquer um (nada sensível aqui) — sem "to" de
 -- propósito, mesmo motivo das outras tabelas (compatibilidade com a
--- publishable key nova do Supabase).
+-- publishable key nova do Supabase). O app filtra por owner_id na consulta
+-- (via get_owner_padrao), porque o banco não tem como saber "de qual
+-- profissional" é um visitante sem login.
 create policy "recados: qualquer um le" on public.recados
   for select
   using (true);
 
-create policy "recados: treinador publica" on public.recados
+create policy "recados: treinador publica os proprios" on public.recados
   for insert
   to authenticated
-  with check (true);
+  with check (owner_id = auth.uid());
 
-create policy "recados: treinador apaga" on public.recados
+create policy "recados: treinador apaga os proprios" on public.recados
   for delete
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
 -- -----------------------------------------------------------------------------
 -- Tabela: injuries (lesões/doenças) — só o treinador mexe aqui, nunca o atleta
@@ -189,27 +277,57 @@ create table if not exists public.injuries (
   data date not null,
   alerta_carga_no_momento text,
   alerta_clinico_no_momento text,
+  -- Preenchido sozinho (default) com quem estiver logado registrando —
+  -- o painel não precisa mandar isso explicitamente.
+  owner_id uuid references auth.users (id) on delete cascade default auth.uid(),
   created_at timestamptz not null default now()
 );
+
+alter table public.injuries add column if not exists owner_id uuid references auth.users (id) on delete cascade default auth.uid();
+alter table public.injuries alter column owner_id set default auth.uid();
+update public.injuries i
+set owner_id = a.owner_id
+from public.athletes a
+where i.athlete_id = a.id and i.owner_id is null;
 
 alter table public.injuries enable row level security;
 
 -- Nenhuma policy pra anon aqui de propósito: atleta sem login não lê nem
--- escreve nada nesta tabela — só o treinador autenticado.
-create policy "injuries: treinador le tudo" on public.injuries
+-- escreve nada nesta tabela — só o treinador autenticado, e só os
+-- PRÓPRIOS registros dele (owner_id = quem está logado).
+create policy "injuries: treinador le os proprios" on public.injuries
   for select
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
 
-create policy "injuries: treinador cria" on public.injuries
+create policy "injuries: treinador cria os proprios" on public.injuries
   for insert
   to authenticated
-  with check (true);
+  with check (owner_id = auth.uid());
 
-create policy "injuries: treinador apaga" on public.injuries
+create policy "injuries: treinador apaga os proprios" on public.injuries
   for delete
   to authenticated
-  using (true);
+  using (owner_id = auth.uid());
+
+-- -----------------------------------------------------------------------------
+-- Função: get_owner_padrao
+-- -----------------------------------------------------------------------------
+-- Enquanto só existir um profissional (você), o check-in usa essa função
+-- pra saber automaticamente "de qual profissional" é o cadastro/check-in
+-- que está sendo feito, sem precisar de um link específico por profissional
+-- ainda (isso vem numa etapa futura). Devolve o profissional mais antigo
+-- cadastrado — com só um, é sempre você.
+create or replace function public.get_owner_padrao()
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select id from public.professionals order by created_at asc limit 1;
+$$;
+
+grant execute on function public.get_owner_padrao() to public;
 
 -- -----------------------------------------------------------------------------
 -- Função: get_own_recent_checkins
@@ -249,12 +367,15 @@ grant execute on function public.get_own_recent_checkins(uuid) to public;
 -- contato do responsável — o consentimento de um menor sozinho não é
 -- válido perante a LGPD. Também exige um PIN de 4 dígitos (p_pin) —
 -- guardado só como hash (nunca em texto puro), usado depois pra confirmar
--- que quem seleciona esse nome na lista é realmente esse atleta.
+-- que quem seleciona esse nome na lista é realmente esse atleta. Recebe
+-- também p_owner_id — de qual profissional é esse cadastro (o site
+-- descobre isso chamando get_owner_padrao() antes, por enquanto).
 -- (o "drop" abaixo remove versões antigas desta função, com uma lista de
 -- parâmetros diferente, pra não deixar duas versões ambíguas coexistindo)
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text);
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean);
 drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text);
+drop function if exists public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text, text);
 
 create or replace function public.register_athlete(
   p_nome text,
@@ -266,7 +387,8 @@ create or replace function public.register_athlete(
   p_consentimento_aceito boolean default false,
   p_responsavel_nome text default null,
   p_responsavel_contato text default null,
-  p_pin text default null
+  p_pin text default null,
+  p_owner_id uuid default null
 )
 returns table (id uuid, nome text)
 language plpgsql
@@ -286,14 +408,18 @@ begin
     raise exception 'É necessário criar um PIN de exatamente 4 dígitos.';
   end if;
 
+  if p_owner_id is null then
+    raise exception 'Não foi possível identificar o profissional responsável.';
+  end if;
+
   return query
-    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, pin_hash, consentimento_aceito_em)
-    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, crypt(p_pin, gen_salt('bf')), now())
+    insert into public.athletes (nome, idade, peso, altura, posicao, historico_lesoes, responsavel_nome, responsavel_contato, pin_hash, owner_id, consentimento_aceito_em)
+    values (p_nome, p_idade, p_peso, p_altura, p_posicao, p_historico_lesoes, p_responsavel_nome, p_responsavel_contato, crypt(p_pin, gen_salt('bf')), p_owner_id, now())
     returning athletes.id, athletes.nome;
 end;
 $$;
 
-grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text, text) to public;
+grant execute on function public.register_athlete(text, integer, numeric, numeric, text, text, boolean, text, text, text, uuid) to public;
 
 -- -----------------------------------------------------------------------------
 -- Função: verificar_pin_atleta
@@ -322,7 +448,8 @@ grant execute on function public.verificar_pin_atleta(uuid, text) to public;
 -- atletas cadastrados antes dessa funcionalidade existir, ou se alguém
 -- esquecer o PIN). Só o treinador logado pode chamar isso — nunca o atleta
 -- sem login (por isso o grant é só "to authenticated", diferente das
--- outras funções deste arquivo que são "to public").
+-- outras funções deste arquivo que são "to public") — e só pra atleta que
+-- seja SEU, nunca de outro profissional (owner_id = auth.uid() no where).
 create or replace function public.definir_pin_atleta(p_athlete_id uuid, p_pin text)
 returns void
 language plpgsql
@@ -334,7 +461,9 @@ begin
     raise exception 'PIN precisa ter exatamente 4 dígitos.';
   end if;
 
-  update public.athletes set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_athlete_id;
+  update public.athletes
+  set pin_hash = crypt(p_pin, gen_salt('bf'))
+  where id = p_athlete_id and owner_id = auth.uid();
 end;
 $$;
 
@@ -372,14 +501,17 @@ security definer
 set search_path = public
 as $$
 begin
+  -- owner_id vem do próprio atleta (não é um parâmetro novo) — evita
+  -- depender do chamador informar o dono certo; o check-in de um atleta
+  -- sempre pertence a quem já é dono dele.
   insert into public.checkins (
     athlete_id, data, modalidade, tipo, tipo_outro, minutos, distancia_km,
     tempo_min, rpe, sono_horas, fadiga, estresse, tem_dor, dor, recuperacao,
-    regiao_dor, observacoes
+    regiao_dor, observacoes, owner_id
   ) values (
     p_athlete_id, p_data, p_modalidade, p_tipo, p_tipo_outro, p_minutos, p_distancia_km,
     p_tempo_min, p_rpe, p_sono_horas, p_fadiga, p_estresse, p_tem_dor, p_dor, p_recuperacao,
-    p_regiao_dor, p_observacoes
+    p_regiao_dor, p_observacoes, (select owner_id from public.athletes where id = p_athlete_id)
   )
   -- reenviar com a mesma modalidade+tipo no mesmo dia é tratado como
   -- correção do mesmo registro (sobrescreve); modalidade ou tipo diferentes

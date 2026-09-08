@@ -161,6 +161,25 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Base para múltiplos profissionais (Fase 1 de 3)** — pensando num futuro
+em que o Recon seja usado por outros fisioterapeutas/educadores físicos (não
+só você), o banco de dados agora sabe "de qual profissional" é cada atleta,
+check-in, recado e registro de lesão/doença. **Isso não muda nada na sua
+experiência hoje** — o site continua igual, com um profissional só (você).
+O que muda é a base de segurança: cada profissional só vai conseguir ver os
+próprios atletas, nunca os de outro. Ainda faltam a Fase 2 (tela de cadastro
+pra novos profissionais se inscreverem sozinhos) e a Fase 3 (link de
+check-in próprio pra cada profissional, em vez do link único de hoje) — por
+enquanto o login por e-mail/senha que você já usa continua sendo o único
+jeito de entrar como profissional.
+
+Pra ativar, rode novamente **todo o conteúdo** do arquivo
+`supabase/migrations/0001_init.sql` no **Supabase SQL Editor** (mesmo passo
+do item 2.5 lá em cima). É seguro rodar de novo com dados existentes — o
+arquivo inteiro foi escrito pra isso (só cria o que ainda não existe e
+atualiza o que muda, sem apagar nada). Depois de rodar, não precisa fazer
+mais nada — nenhuma variável de ambiente nova, nenhum redeploy manual.
+
 ✅ **Leitura de print de treino via IA** — no check-in, o atleta pode anexar
 um print do relógio/app (Garmin Connect, Strava, Apple Fitness etc.) e o
 site tenta preencher sozinho modalidade, duração/distância e data. Ele
