@@ -405,7 +405,10 @@ create or replace function public.register_athlete(
 returns table (id uuid, nome text)
 language plpgsql
 security definer
-set search_path = public
+-- "extensions" além de "public" porque o Supabase instala o pgcrypto
+-- (crypt/gen_salt, usados pra fazer o hash do PIN) nesse schema separado,
+-- não em "public" — sem isso, o Postgres não acha a função crypt().
+set search_path = public, extensions
 as $$
 begin
   if not p_consentimento_aceito then
@@ -444,7 +447,8 @@ create or replace function public.verificar_pin_atleta(p_athlete_id uuid, p_pin 
 returns boolean
 language sql
 security definer
-set search_path = public
+-- "extensions" além de "public": ver comentário em register_athlete acima.
+set search_path = public, extensions
 as $$
   select case when pin_hash is null then false else pin_hash = crypt(p_pin, pin_hash) end
   from public.athletes
@@ -466,7 +470,8 @@ create or replace function public.definir_pin_atleta(p_athlete_id uuid, p_pin te
 returns void
 language plpgsql
 security definer
-set search_path = public
+-- "extensions" além de "public": ver comentário em register_athlete acima.
+set search_path = public, extensions
 as $$
 begin
   if p_pin !~ '^\d{4}$' then
