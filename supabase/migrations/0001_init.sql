@@ -24,6 +24,7 @@ create table if not exists public.professionals (
 
 alter table public.professionals enable row level security;
 
+drop policy if exists "professionals: le o proprio perfil" on public.professionals;
 create policy "professionals: le o proprio perfil" on public.professionals
   for select
   to authenticated
@@ -109,16 +110,19 @@ alter table public.athletes enable row level security;
 -- logado) — nunca os de outro profissional. Atletas sem login NÃO leem esta
 -- tabela diretamente — eles usam a view "athletes_roster" abaixo, que expõe
 -- só o nome.
+drop policy if exists "athletes: treinador le os proprios" on public.athletes;
 create policy "athletes: treinador le os proprios" on public.athletes
   for select
   to authenticated
   using (owner_id = auth.uid());
 
+drop policy if exists "athletes: treinador atualiza os proprios" on public.athletes;
 create policy "athletes: treinador atualiza os proprios" on public.athletes
   for update
   to authenticated
   using (owner_id = auth.uid());
 
+drop policy if exists "athletes: treinador apaga os proprios" on public.athletes;
 create policy "athletes: treinador apaga os proprios" on public.athletes
   for delete
   to authenticated
@@ -206,11 +210,13 @@ alter table public.checkins enable row level security;
 -- check-in é resolvido por uma função (RPC) separada mais abaixo, que devolve
 -- só os dados daquele atleta específico — nunca de outra pessoa. O treinador
 -- só vê os check-ins dos PRÓPRIOS atletas (owner_id = quem está logado).
+drop policy if exists "checkins: treinador le os proprios" on public.checkins;
 create policy "checkins: treinador le os proprios" on public.checkins
   for select
   to authenticated
   using (owner_id = auth.uid());
 
+drop policy if exists "checkins: treinador apaga os proprios" on public.checkins;
 create policy "checkins: treinador apaga os proprios" on public.checkins
   for delete
   to authenticated
@@ -250,15 +256,18 @@ alter table public.recados enable row level security;
 -- publishable key nova do Supabase). O app filtra por owner_id na consulta
 -- (via get_owner_padrao), porque o banco não tem como saber "de qual
 -- profissional" é um visitante sem login.
+drop policy if exists "recados: qualquer um le" on public.recados;
 create policy "recados: qualquer um le" on public.recados
   for select
   using (true);
 
+drop policy if exists "recados: treinador publica os proprios" on public.recados;
 create policy "recados: treinador publica os proprios" on public.recados
   for insert
   to authenticated
   with check (owner_id = auth.uid());
 
+drop policy if exists "recados: treinador apaga os proprios" on public.recados;
 create policy "recados: treinador apaga os proprios" on public.recados
   for delete
   to authenticated
@@ -295,16 +304,19 @@ alter table public.injuries enable row level security;
 -- Nenhuma policy pra anon aqui de propósito: atleta sem login não lê nem
 -- escreve nada nesta tabela — só o treinador autenticado, e só os
 -- PRÓPRIOS registros dele (owner_id = quem está logado).
+drop policy if exists "injuries: treinador le os proprios" on public.injuries;
 create policy "injuries: treinador le os proprios" on public.injuries
   for select
   to authenticated
   using (owner_id = auth.uid());
 
+drop policy if exists "injuries: treinador cria os proprios" on public.injuries;
 create policy "injuries: treinador cria os proprios" on public.injuries
   for insert
   to authenticated
   with check (owner_id = auth.uid());
 
+drop policy if exists "injuries: treinador apaga os proprios" on public.injuries;
 create policy "injuries: treinador apaga os proprios" on public.injuries
   for delete
   to authenticated
