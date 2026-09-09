@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Radar } from "lucide-react";
+import { Radar, ArrowLeft } from "lucide-react";
 import { FontImport, shellStyle } from "@/lib/ui";
 
 function NavBtn({ href, label, active }: { href: string; label: string; active: boolean }) {
@@ -34,6 +34,15 @@ export default function PageShell({ children, showNav = true }: { children: Reac
       <FontImport />
       <div style={{ padding: "28px 20px 0", maxWidth: 720, margin: "0 auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {pathname !== "/" && (
+            <Link
+              href="/"
+              aria-label="Voltar pra tela inicial"
+              style={{ display: "flex", color: "#5B6664", marginRight: 2 }}
+            >
+              <ArrowLeft size={22} strokeWidth={2} />
+            </Link>
+          )}
           <Radar size={30} color="#297379" strokeWidth={2} />
           <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 34, fontWeight: 700, lineHeight: 1, letterSpacing: 1 }}>RECON</div>
         </div>
