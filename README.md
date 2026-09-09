@@ -170,6 +170,22 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Estresse percebido passa a contar nos alertas** — o check-in já
+perguntava o estresse percebido do atleta todo dia, mas isso nunca
+influenciava nenhum alerta, só ficava no histórico. Agora conta de duas
+formas, com cuidado pra não mexer na fórmula clínica calibrada com dados
+reais (93% de acerto):
+- Na **linha de base individual** (o "dentro/abaixo do seu padrão" que
+  compara com o próprio histórico do atleta) — passa a fazer parte do
+  índice, junto com sono, fadiga, dor e recuperação, deixando esse índice
+  mais alinhado ao Índice de Hooper (Hooper & Mackinnon, 1995), uma
+  referência clássica de bem-estar no esporte.
+- No **alerta clínico geral** — a fórmula calibrada em si não muda, mas um
+  estresse relatado no nível máximo (5, "muito estressado") sobe o alerta
+  um degrau (verde vira amarelo, amarelo vira vermelho), como um reforço
+  à parte.
+Nenhuma mudança de banco de dados — só a fórmula em `lib/recon.ts`.
+
 ✅ **Tela inicial com as duas entradas, mais centralizada** — a raiz do
 site não pula mais direto pro check-in; agora mostra as duas opções
 ("Check-in do atleta" e "Painel do profissional") de forma visível, e as

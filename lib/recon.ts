@@ -244,6 +244,23 @@ export function indiceRecuperacao(sono: number, fadiga: number, dor: number, rec
   return (sono - fadiga + (recuperacao - dor / 2)) / 2;
 }
 
+// Mesma ideia do indiceRecuperacao acima, mas somando o estresse percebido
+// como mais um fator negativo (mesma escala 1-5 da fadiga) — deixa o índice
+// mais alinhado ao Índice de Hooper (Hooper & Mackinnon, 1995), que usa
+// justamente sono + fadiga + dor muscular + estresse; o indiceRecuperacao
+// original tinha os 3 primeiros e nunca usou o estresse, apesar de o
+// check-in já perguntar isso todo dia. Usado só na linha de base individual
+// (alertaIndividual, mais abaixo) — nunca no alerta clínico geral
+// (alertaClinico), que usa uma fórmula com limiares fixos calibrados contra
+// dados reais de torneio; mudar os pesos dela sem dados novos pra
+// recalibrar arriscaria essa precisão. Já a linha de base individual é
+// sempre relativa ao histórico do PRÓPRIO atleta (z-score), então trocar a
+// fórmula aqui não corrompe limiar fixo nenhum: o "normal" de cada atleta é
+// recalculado com os dados dele mesmo, com ou sem estresse na conta.
+export function indiceRecuperacaoComEstresse(sono: number, fadiga: number, dor: number, recuperacao: number, estresse: number): number {
+  return (sono - fadiga - estresse + (recuperacao - dor / 2)) / 2;
+}
+
 // entries: ordenados por data asc, de UM atleta só
 export function computeSeries(entries: CheckinInput[]): CheckinComputed[] {
   return entries.map((e, i) => {
@@ -254,6 +271,9 @@ export function computeSeries(entries: CheckinInput[]): CheckinComputed[] {
     const carga3dias = janela.reduce((s, x) => s + cargaSRPE(x), 0);
     const indice = TIPOS_COM_CARGA.includes(e.tipo)
       ? indiceRecuperacao(Number(horasParaEscalaSono(e.sonoHoras)), Number(e.fadiga), Number(e.dor), Number(e.recuperacao))
+      : null;
+    const indiceComEstresse = TIPOS_COM_CARGA.includes(e.tipo)
+      ? indiceRecuperacaoComEstresse(Number(horasParaEscalaSono(e.sonoHoras)), Number(e.fadiga), Number(e.dor), Number(e.recuperacao), Number(e.estresse))
       : null;
 
     let alertaCarga: Alerta | null = null;
@@ -282,24 +302,39 @@ export function computeSeries(entries: CheckinInput[]): CheckinComputed[] {
       } else {
         alertaClinico = { label: "Sem alerta clínico", tone: "ok" };
       }
+
+      // Reforço à parte, fora da fórmula calibrada acima (pra não mexer nos
+      // limiares validados contra os dados do torneio): estresse relatado
+      // no nível máximo (5, "muito estressado") sobe o alerta um degrau,
+      // sem trocar o cálculo do score em si. Só entra em jogo no extremo,
+      // então não deveria afetar a precisão de 93% medida sem esse reforço.
+      if (Number(e.estresse) >= 5) {
+        if (alertaClinico.tone === "ok") {
+          alertaClinico = { label: "Estresse muito alto — monitorar", tone: "warn" };
+        } else if (alertaClinico.tone === "warn") {
+          alertaClinico = { label: alertaClinico.label + " + estresse muito alto", tone: "danger" };
+        }
+      }
     }
 
     // linha de base individual (complementar, não substitui os alertas acima):
-    // compara o índice de hoje com a média/desvio-padrão dos últimos check-ins do
-    // PRÓPRIO atleta (janela de até 12 registros anteriores), via z-score.
-    // só ativa com pelo menos 5 registros anteriores.
+    // compara o índice de hoje (agora incluindo estresse, ver
+    // indiceRecuperacaoComEstresse acima) com a média/desvio-padrão dos
+    // últimos check-ins do PRÓPRIO atleta (janela de até 12 registros
+    // anteriores), via z-score. Só ativa com pelo menos 5 registros
+    // anteriores.
     let alertaIndividual: Alerta | null = null;
-    if (TIPOS_COM_CARGA.includes(e.tipo) && indice !== null) {
+    if (TIPOS_COM_CARGA.includes(e.tipo) && indiceComEstresse !== null) {
       const historico = entries
         .slice(0, i)
         .filter((x) => TIPOS_COM_CARGA.includes(x.tipo))
-        .map((x) => indiceRecuperacao(Number(horasParaEscalaSono(x.sonoHoras)), Number(x.fadiga), Number(x.dor), Number(x.recuperacao)));
+        .map((x) => indiceRecuperacaoComEstresse(Number(horasParaEscalaSono(x.sonoHoras)), Number(x.fadiga), Number(x.dor), Number(x.recuperacao), Number(x.estresse)));
       const janelaBase = historico.slice(-12);
       if (janelaBase.length >= 5) {
         const media = janelaBase.reduce((s, v) => s + v, 0) / janelaBase.length;
         const variancia = janelaBase.reduce((s, v) => s + (v - media) ** 2, 0) / janelaBase.length;
         const dp = Math.sqrt(variancia);
-        const z = dp > 0 ? (indice - media) / dp : 0;
+        const z = dp > 0 ? (indiceComEstresse - media) / dp : 0;
         if (z <= -1.5) {
           alertaIndividual = { label: "Bem abaixo do seu normal", tone: "danger" };
         } else if (z <= -1.0) {
