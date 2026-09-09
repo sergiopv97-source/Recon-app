@@ -25,6 +25,7 @@ import { gerarResumoPdf, carregarLogoBase64 } from "@/lib/pdfResumo";
 import { errorMessage } from "@/lib/errors";
 import Badge from "@/components/Badge";
 import HistoricoChart from "@/components/HistoricoChart";
+import CheckinForm from "@/components/CheckinForm";
 
 const emptyLesaoForm = {
   tipoRegistro: "Lesão" as "Lesão" | "Doença",
@@ -55,6 +56,11 @@ export default function PainelClient() {
   const [pinValor, setPinValor] = useState("");
   const [salvandoPin, setSalvandoPin] = useState(false);
   const [pinMsg, setPinMsg] = useState("");
+
+  // Atleta cujo check-in está sendo preenchido pelo próprio treinador (ex:
+  // atleta mandou as respostas por mensagem porque não consegue usar o
+  // app). Reaproveita o CheckinForm inteiro, já identificado, sem PIN.
+  const [checkinAtletaId, setCheckinAtletaId] = useState<string | null>(null);
 
   // Link de check-in próprio do profissional logado (/checkin/[slug]).
   const [profissional, setProfissional] = useState<ProfessionalRow | null>(null);
@@ -709,6 +715,13 @@ export default function PainelClient() {
                       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                         <button
                           type="button"
+                          onClick={() => setCheckinAtletaId(checkinAtletaId === athleteId ? null : athleteId)}
+                          style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                        >
+                          {checkinAtletaId === athleteId ? "Fechar preenchimento" : "Preencher check-in por ele"}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => iniciarEdicao(infoAtleta)}
                           style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
                         >
@@ -733,6 +746,21 @@ export default function PainelClient() {
                           Apagar atleta
                         </button>
                       </div>
+
+                      {checkinAtletaId === athleteId && infoAtleta.owner_id && (
+                        <div style={{ marginTop: 12, padding: "14px", background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 8 }}>
+                          <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 12 }}>
+                            Use pra registrar o check-in de {infoAtleta.nome} com base no que ele te passou (mensagem, áudio etc.) — sem precisar que ele
+                            mesmo acesse o site.
+                          </div>
+                          <CheckinForm
+                            ownerIdFixo={infoAtleta.owner_id}
+                            atletaFixo={{ id: athleteId, nome: infoAtleta.nome }}
+                            onFechar={() => setCheckinAtletaId(null)}
+                            onSalvo={load}
+                          />
+                        </div>
+                      )}
 
                       {pinAtletaId === athleteId && (
                         <div style={{ marginTop: 10, padding: "10px 12px", background: "#F7F8F7", border: "1px solid #DCE3E1", borderRadius: 6 }}>

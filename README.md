@@ -161,6 +161,14 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Preencher check-in por um atleta, direto no painel** — pra quando um
+atleta não consegue (ou não quer) usar o site sozinho e te manda as
+respostas por mensagem/áudio. Abra o atleta no painel e clique em
+**"Preencher check-in por ele"** — aparece o mesmo questionário que ele
+veria, já identificado, sem precisar de PIN nem de mais nada — é só
+preencher com o que ele te passou e enviar. Não precisa de nenhum SQL
+novo pra isso, já está ativo.
+
 ✅ **Link de check-in próprio por profissional (Fase 3 de 3)** — cada
 profissional agora pode ter o próprio link de check-in, no formato
 `seusite.com/checkin/seu-link` (ex: `/checkin/sergio-vargas`), em vez de

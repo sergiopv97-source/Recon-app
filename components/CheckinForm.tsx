@@ -75,12 +75,32 @@ const emptyForm = {
   observacoes: "",
 };
 
-export default function CheckinForm({ slug }: { slug?: string }) {
+export default function CheckinForm({
+  slug,
+  atletaFixo,
+  ownerIdFixo,
+  onFechar,
+  onSalvo,
+}: {
+  slug?: string;
+  // Preenchidos quando é o TREINADOR enviando o check-in por um atleta que
+  // não consegue fazer sozinho (ex: mandou as respostas por mensagem) — vem
+  // do painel, já sabendo quem é o atleta e o profissional, sem precisar de
+  // nome/PIN. Com atletaFixo presente, o formulário pula direto pro
+  // questionário, sem etapa de identificação.
+  atletaFixo?: { id: string; nome: string };
+  ownerIdFixo?: string;
+  onFechar?: () => void;
+  onSalvo?: () => void;
+}) {
   const supabase = useMemo(() => createClient(), []);
   const [roster, setRoster] = useState<AthleteRosterRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Já começa "não carregando" no modo treinador (atletaFixo) — não há
+  // roster nem profissional pra resolver por chamada assíncrona, ambos já
+  // vêm prontos via prop.
+  const [loading, setLoading] = useState(() => !atletaFixo);
   const [erroCarregamento, setErroCarregamento] = useState("");
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => (atletaFixo ? { ...emptyForm, atleta: atletaFixo.id } : emptyForm));
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -98,7 +118,7 @@ export default function CheckinForm({ slug }: { slug?: string }) {
   // e deixa claro que a identificação é uma etapa própria. A etapa "pin"
   // só aparece pra atletas que já têm PIN definido (tem_pin na lista) —
   // confirma que quem selecionou o nome é realmente aquele atleta.
-  const [etapa, setEtapa] = useState<"nome" | "cadastro" | "pin" | "checkin">("nome");
+  const [etapa, setEtapa] = useState<"nome" | "cadastro" | "pin" | "checkin">(atletaFixo ? "checkin" : "nome");
   const [buscaNome, setBuscaNome] = useState("");
   const [pinDigitado, setPinDigitado] = useState("");
   const [pinErro, setPinErro] = useState("");
@@ -112,9 +132,12 @@ export default function CheckinForm({ slug }: { slug?: string }) {
   // sem slug (o link antigo, só "/checkin"), continua caindo no profissional
   // padrão (get_owner_padrao) — assim o link que os atletas já usam não
   // quebra pra ninguém.
-  const [ownerPadrao, setOwnerPadrao] = useState<string | null>(null);
+  // No modo treinador (ownerIdFixo, vindo do painel) já começa resolvido —
+  // sem chamada nenhuma, é o próprio profissional logado.
+  const [ownerPadrao, setOwnerPadrao] = useState<string | null>(() => ownerIdFixo ?? null);
 
   useEffect(() => {
+    if (ownerIdFixo) return;
     (async () => {
       const { data, error } = slug ? await supabase.rpc("get_owner_by_slug", { p_slug: slug }) : await supabase.rpc("get_owner_padrao");
       if (!error && data) {
@@ -128,13 +151,15 @@ export default function CheckinForm({ slug }: { slug?: string }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, ownerIdFixo]);
 
   // Recado pra todo mundo (athlete_id nulo) — dá pra buscar antes de saber
   // quem é o atleta, mas só depois de saber de qual profissional é (senão
   // apareceria recado de outro profissional, quando existir mais de um).
+  // Não faz sentido quando é o treinador preenchendo por um atleta (o
+  // "recado do treinador" seria mostrado pro próprio treinador).
   useEffect(() => {
-    if (!ownerPadrao) return;
+    if (!ownerPadrao || atletaFixo) return;
     (async () => {
       const { data, error } = await supabase
         .from("recados")
@@ -149,11 +174,12 @@ export default function CheckinForm({ slug }: { slug?: string }) {
   }, [ownerPadrao]);
 
   // Recado só pra esse atleta específico — busca de novo assim que ele se
-  // identifica.
+  // identifica. Pulado quando é o treinador preenchendo por ele (mesmo
+  // motivo do recado geral acima).
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!form.atleta || form.atleta === "__novo__") {
+      if (!form.atleta || form.atleta === "__novo__" || atletaFixo) {
         if (!cancelled) setRecadoPessoal(null);
         return;
       }
@@ -163,10 +189,14 @@ export default function CheckinForm({ slug }: { slug?: string }) {
     return () => {
       cancelled = true;
     };
-  }, [form.atleta, supabase]);
+  }, [form.atleta, atletaFixo, supabase]);
 
+  // Busca da lista de nomes pra identificação — não precisa quando é o
+  // treinador preenchendo por um atleta já definido (atletaFixo): aí o
+  // formulário já começa com loading=false (ver useState acima) e pula
+  // direto pra etapa "checkin", sem precisar de roster.
   useEffect(() => {
-    if (!ownerPadrao) return;
+    if (!ownerPadrao || atletaFixo) return;
     (async () => {
       const { data, error } = await supabase
         .from("athletes_roster")
@@ -188,7 +218,7 @@ export default function CheckinForm({ slug }: { slug?: string }) {
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ownerPadrao]);
+  }, [ownerPadrao, atletaFixo]);
 
   // Busca os últimos check-ins do próprio atleta selecionado, pra calcular a
   // "orientação de hoje" (autocuidado) — não expõe dados de outros atletas.
@@ -274,9 +304,10 @@ export default function CheckinForm({ slug }: { slug?: string }) {
   }
 
   const nomeAtletaSelecionado = useMemo(() => {
+    if (atletaFixo) return atletaFixo.nome;
     if (form.atleta === "__novo__") return form.novoAtleta.trim();
     return roster.find((a) => a.id === form.atleta)?.nome ?? "";
-  }, [form.atleta, form.novoAtleta, roster]);
+  }, [atletaFixo, form.atleta, form.novoAtleta, roster]);
 
   // Menor de idade precisa do consentimento do responsável (LGPD), não do
   // próprio atleta — só sabemos isso depois que a idade é preenchida no
@@ -467,6 +498,7 @@ export default function CheckinForm({ slug }: { slug?: string }) {
 
       setSavedMsg("Registro salvo.");
       setForm({ ...emptyForm, atleta: athleteId, data: proximaData(form.data) });
+      onSalvo?.();
 
       const { data: refreshed } = await supabase.rpc("get_own_recent_checkins", { p_athlete_id: athleteId });
       if (refreshed) {
@@ -776,9 +808,15 @@ export default function CheckinForm({ slug }: { slug?: string }) {
       {etapa === "checkin" && (
         <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#14201F" }}>Olá, {nomeAtletaSelecionado}</div>
-        <button type="button" onClick={trocarAtleta} style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          trocar
+        <div style={{ fontSize: 16, fontWeight: 600, color: "#14201F" }}>
+          {atletaFixo ? `Preenchendo o check-in de ${nomeAtletaSelecionado}` : `Olá, ${nomeAtletaSelecionado}`}
+        </div>
+        <button
+          type="button"
+          onClick={atletaFixo ? onFechar : trocarAtleta}
+          style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+        >
+          {atletaFixo ? "fechar" : "trocar"}
         </button>
       </div>
 
