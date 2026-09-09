@@ -71,67 +71,73 @@ function CadastroForm() {
 
   if (precisaConfirmarEmail) {
     return (
-      <div style={{ maxWidth: 380, margin: "40px auto 0", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 12 }}>Quase lá!</div>
-        <div style={{ fontSize: 14, color: "#5B6664", lineHeight: 1.5 }}>
-          Mandamos um e-mail de confirmação pra <strong>{email}</strong>. Clique no link dele pra ativar sua conta — depois é só{" "}
-          <Link href="/login" style={{ color: "#297379", fontWeight: 600 }}>
-            fazer login
-          </Link>
-          .
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{ maxWidth: 380, width: "100%", margin: "40px 0 0", textAlign: "center" }}>
+          <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 12 }}>Quase lá!</div>
+          <div style={{ fontSize: 14, color: "#5B6664", lineHeight: 1.5 }}>
+            Mandamos um e-mail de confirmação pra <strong>{email}</strong>. Clique no link dele pra ativar sua conta — depois é só{" "}
+            <Link href="/login" style={{ color: "#297379", fontWeight: 600 }}>
+              fazer login
+            </Link>
+            .
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ maxWidth: 380, margin: "40px auto 0" }}>
-      <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 4 }}>Criar conta de profissional</div>
-      <div style={{ fontSize: 13, color: "#5B6664", marginBottom: 20 }}>
-        Pra fisioterapeutas e educadores físicos acompanharem os próprios atletas/pacientes no Recon.
-      </div>
-      <form onSubmit={submit}>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: "#5B6664" }}>Nome completo</label>
-          <input style={inputStyle} type="text" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} required />
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, width: "100%", margin: "40px 0 0" }}>
+        <div style={{ fontFamily: "'Poppins', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 4, textAlign: "center" }}>
+          Criar conta de profissional
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: "#5B6664" }}>E-mail</label>
-          <input style={inputStyle} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <div style={{ fontSize: 13, color: "#5B6664", marginBottom: 20, textAlign: "center" }}>
+          Pra fisioterapeutas e educadores físicos acompanharem os próprios atletas/pacientes no Recon.
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 13, color: "#5B6664" }}>Senha</label>
-          <input
-            style={inputStyle}
-            type="password"
-            autoComplete="new-password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            required
-          />
-          <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4 }}>Pelo menos 6 caracteres.</div>
+        <form onSubmit={submit}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: "#5B6664" }}>Nome completo</label>
+            <input style={inputStyle} type="text" autoComplete="name" value={nome} onChange={(e) => setNome(e.target.value)} required />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: "#5B6664" }}>E-mail</label>
+            <input style={inputStyle} type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: "#5B6664" }}>Senha</label>
+            <input
+              style={inputStyle}
+              type="password"
+              autoComplete="new-password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              required
+            />
+            <div style={{ fontSize: 12, color: "#5B6664", marginTop: 4 }}>Pelo menos 6 caracteres.</div>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: "#5B6664" }}>Confirmar senha</label>
+            <input
+              style={inputStyle}
+              type="password"
+              autoComplete="new-password"
+              value={confirmarSenha}
+              onChange={(e) => setConfirmarSenha(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" disabled={loading} style={{ ...primaryButtonStyle, width: "100%" }}>
+            {loading ? "Criando conta…" : "Criar conta"}
+          </button>
+          {errorMsg && <div style={{ marginTop: 12, fontSize: 14, color: "#B23A32", textAlign: "center" }}>{errorMsg}</div>}
+        </form>
+        <div style={{ fontSize: 13, color: "#5B6664", textAlign: "center", marginTop: 20 }}>
+          Já tem conta?{" "}
+          <Link href="/login" style={{ color: "#297379", fontWeight: 600 }}>
+            Entrar
+          </Link>
         </div>
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 13, color: "#5B6664" }}>Confirmar senha</label>
-          <input
-            style={inputStyle}
-            type="password"
-            autoComplete="new-password"
-            value={confirmarSenha}
-            onChange={(e) => setConfirmarSenha(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" disabled={loading} style={{ ...primaryButtonStyle, width: "100%" }}>
-          {loading ? "Criando conta…" : "Criar conta"}
-        </button>
-        {errorMsg && <div style={{ marginTop: 12, fontSize: 14, color: "#B23A32", textAlign: "center" }}>{errorMsg}</div>}
-      </form>
-      <div style={{ fontSize: 13, color: "#5B6664", textAlign: "center", marginTop: 20 }}>
-        Já tem conta?{" "}
-        <Link href="/login" style={{ color: "#297379", fontWeight: 600 }}>
-          Entrar
-        </Link>
       </div>
     </div>
   );

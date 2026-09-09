@@ -26,13 +26,19 @@ disso, qualquer atualização é automática.
 
 ## 1. Como o site é organizado
 
-- **`/checkin`** — link público que você manda pros atletas. Eles escolhem
-  o nome (ou se cadastram, se for a primeira vez) e preenchem o
-  questionário do dia. Não precisa de senha.
+- **A raiz do site** (o link sem nada depois, ex: `https://recon-app.vercel.app`)
+  mostra uma tela simples com duas opções: "Check-in do atleta" ou "Painel
+  do profissional" — cada um clica na sua.
+- **`/checkin`** (ou `/checkin/seu-link`, ver Fase 3 mais abaixo) — link
+  público que você manda pros atletas. Eles escolhem o nome (ou se
+  cadastram, se for a primeira vez) e preenchem o questionário do dia. Não
+  precisa de senha.
 - **`/painel`** — o seu painel, com todos os atletas, alertas, gráficos,
   registro de lesões/doenças e resumo exportável. **Só você acessa**, com
   e-mail e senha.
 - **`/login`** — onde você faz login pra entrar no painel.
+- **`/cadastro`** — onde outros fisioterapeutas/educadores físicos criam a
+  própria conta (ver Fase 2 mais abaixo).
 
 O site guarda os dados em um banco de dados de verdade (Supabase, veja
 abaixo), não mais na memória do navegador — então nada se perde.
@@ -163,6 +169,12 @@ painel) usa essas mesmas funções.
 ---
 
 ## 6. O que ainda falta / próximos passos
+
+✅ **Tela inicial com as duas entradas, mais centralizada** — a raiz do
+site não pula mais direto pro check-in; agora mostra as duas opções
+("Check-in do atleta" e "Painel do profissional") de forma visível, e as
+telas de login/cadastro ficaram melhor centralizadas na página. Nada de
+SQL nessa, só ajuste de tela.
 
 ✅ **Cadastro público de profissional (Fase 2 de 3)** — agora qualquer
 fisioterapeuta ou educador físico consegue criar a própria conta sozinho,
