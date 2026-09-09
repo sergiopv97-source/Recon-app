@@ -15,30 +15,48 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-function iOSSemAtalho(): boolean {
-  if (typeof window === "undefined") return false;
-  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  // No Safari, "standalone" é true quando o site já foi adicionado à tela
-  // de início — sem isso, o iOS não entrega push nenhum (limitação da
-  // Apple, não do Recon).
-  const jaInstalado = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return iOS && !jaInstalado;
+// iPhone/iPad, mesmo quando o Safari disfarça o user-agent de "Mac" (o
+// iPad faz isso desde o iPadOS 13) — o truque padrão pra detectar isso é
+// checar por tela sensível ao toque num "MacIntel", já que um Mac de
+// verdade não tem touch.
+function isAppleTouchDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const uaIsIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isIPadOSDisfarcado = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return uaIsIOS || isIPadOSDisfarcado;
 }
+
+// No Safari (iPhone/iPad), o navegador só entrega notificação push depois
+// que o site foi adicionado à tela de início — sem isso, a própria API de
+// push nem existe (limitação da Apple, não do Recon). "standalone" é a
+// forma que o Safari expõe pra saber se já foi adicionado.
+function jaInstaladoNaTelaDeInicio(): boolean {
+  if (typeof window === "undefined") return false;
+  return (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+type Status = "verificando" | "precisaInstalar" | "naoSuportado" | "inativo" | "ativando" | "ativo" | "erro";
 
 // Botão "ativar lembrete de check-in" — só faz sentido no aparelho do
 // PRÓPRIO atleta (nunca no modo em que o treinador preenche por ele, ver
-// CheckinForm). Fica escondido se o navegador não suportar notificação
-// push (ex: Safari de desktop mais antigo).
+// CheckinForm).
 export default function AtivarLembrete({ athleteId }: { athleteId: string }) {
-  const [suportado, setSuportado] = useState(true);
-  const [status, setStatus] = useState<"verificando" | "inativo" | "ativando" | "ativo" | "erro">("verificando");
+  const [status, setStatus] = useState<Status>("verificando");
   const [erroMsg, setErroMsg] = useState("");
 
   useEffect(() => {
     let cancelado = false;
     (async () => {
+      // No Safari da Apple (iPhone/iPad) sem estar na tela de início, a
+      // API de push nem existe — precisa mostrar a instrução de instalar
+      // ANTES de checar suporte, senão isso cai (errado) no "não
+      // suportado" e o atleta nunca fica sabendo que dá pra ativar.
+      if (isAppleTouchDevice() && !jaInstaladoNaTelaDeInicio()) {
+        if (!cancelado) setStatus("precisaInstalar");
+        return;
+      }
       if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-        if (!cancelado) setSuportado(false);
+        if (!cancelado) setStatus("naoSuportado");
         return;
       }
       try {
@@ -91,7 +109,28 @@ export default function AtivarLembrete({ athleteId }: { athleteId: string }) {
     }
   }
 
-  if (!suportado || status === "verificando") return null;
+  if (status === "verificando" || status === "naoSuportado") return null;
+
+  if (status === "precisaInstalar") {
+    return (
+      <div
+        style={{
+          marginBottom: 18,
+          fontSize: 12.5,
+          color: "#14201F",
+          background: "#E4F1F0",
+          border: "1px solid #DCE3E1",
+          borderRadius: 8,
+          padding: "10px 14px",
+        }}
+      >
+        🔔 Quer um lembrete se esquecer de fazer o check-in? No iPhone/iPad, primeiro precisa adicionar o Recon à
+        tela de início: toque em compartilhar <span aria-hidden="true">⬆️</span> → &quot;Adicionar à Tela de
+        Início&quot;. Depois, abra o Recon por esse ícone (não pelo Safari direto) — aí sim o botão de ativar
+        aparece aqui.
+      </div>
+    );
+  }
 
   return (
     <div style={{ marginBottom: 18, fontSize: 12.5 }}>
@@ -107,12 +146,6 @@ export default function AtivarLembrete({ athleteId }: { athleteId: string }) {
           >
             🔔 {status === "ativando" ? "Ativando…" : "Ativar lembrete diário de check-in"}
           </button>
-          {iOSSemAtalho() && (
-            <div style={{ color: "#5B6664", marginTop: 4 }}>
-              No iPhone, isso só funciona depois de adicionar o Recon à tela de início (toque em compartilhar
-              <span aria-hidden="true"> ⬆️ </span>→ &quot;Adicionar à Tela de Início&quot;), por causa de uma limitação da Apple.
-            </div>
-          )}
           {erroMsg && <div style={{ color: "#B23A32", marginTop: 4 }}>{erroMsg}</div>}
         </>
       )}
