@@ -3,6 +3,10 @@
     {
       "path": "/api/resumo-semanal",
       "schedule": "0 10 * * 1"
+    },
+    {
+      "path": "/api/lembrete-checkin",
+      "schedule": "0 23 * * *"
     }
   ]
 }

@@ -10,12 +10,14 @@ import {
   TIPOS_COM_CARGA,
   computeSeries,
   diaSemanaDe,
+  formatarDataCurta,
   proximaData,
   paceMinKm,
   recomendacoes,
   sequenciaCheckins,
   numeroBr,
   type Modalidade,
+  type CheckinInput,
 } from "@/lib/recon";
 import { checkinRowToInput, type AthleteRosterRow, type CheckinRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, primaryButtonStyle, cardStyle } from "@/lib/ui";
@@ -23,6 +25,7 @@ import { errorMessage } from "@/lib/errors";
 import Slider from "@/components/Slider";
 import TermoConsentimento from "@/components/TermoConsentimento";
 import HistoricoChart from "@/components/HistoricoChart";
+import AtivarLembrete from "@/components/AtivarLembrete";
 import type { MarcadorHistorico } from "@/components/HistoricoChart";
 
 // Chave usada pra lembrar, só neste aparelho, quem foi o último atleta a se
@@ -79,6 +82,7 @@ export default function CheckinForm({
   slug,
   atletaFixo,
   ownerIdFixo,
+  checkinParaEditar,
   onFechar,
   onSalvo,
 }: {
@@ -90,6 +94,13 @@ export default function CheckinForm({
   // questionário, sem etapa de identificação.
   atletaFixo?: { id: string; nome: string };
   ownerIdFixo?: string;
+  // Preenchido quando o treinador está corrigindo um check-in que já
+  // existe (em vez de lançar um novo) — o formulário abre com os valores
+  // desse registro em vez dos padrões em branco. Só faz sentido junto com
+  // atletaFixo. Enviar sem mudar data/modalidade/tipo sobrescreve esse
+  // mesmo registro (é como o submit_checkin já funciona); mudando
+  // qualquer um desses três, vira um registro novo em vez de correção.
+  checkinParaEditar?: CheckinInput;
   onFechar?: () => void;
   onSalvo?: () => void;
 }) {
@@ -100,7 +111,31 @@ export default function CheckinForm({
   // vêm prontos via prop.
   const [loading, setLoading] = useState(() => !atletaFixo);
   const [erroCarregamento, setErroCarregamento] = useState("");
-  const [form, setForm] = useState(() => (atletaFixo ? { ...emptyForm, atleta: atletaFixo.id } : emptyForm));
+  const [form, setForm] = useState(() => {
+    if (checkinParaEditar) {
+      return {
+        ...emptyForm,
+        atleta: atletaFixo?.id ?? "",
+        data: checkinParaEditar.data,
+        modalidade: checkinParaEditar.modalidade,
+        tipo: checkinParaEditar.tipo,
+        tipoOutro: checkinParaEditar.tipoOutro ?? "",
+        minutos: checkinParaEditar.minutos != null ? String(checkinParaEditar.minutos) : "",
+        distanciaKm: checkinParaEditar.distanciaKm != null ? String(checkinParaEditar.distanciaKm) : "",
+        tempoMin: checkinParaEditar.tempoMin != null ? String(checkinParaEditar.tempoMin) : "",
+        rpe: checkinParaEditar.rpe,
+        sonoHoras: checkinParaEditar.sonoHoras != null ? String(checkinParaEditar.sonoHoras) : "8",
+        fadiga: checkinParaEditar.fadiga,
+        estresse: checkinParaEditar.estresse,
+        temDor: checkinParaEditar.temDor,
+        dorNivel: checkinParaEditar.dor,
+        recuperacao: checkinParaEditar.recuperacao,
+        regiaoDor: checkinParaEditar.regiaoDor ?? "",
+        observacoes: checkinParaEditar.observacoes ?? "",
+      };
+    }
+    return atletaFixo ? { ...emptyForm, atleta: atletaFixo.id } : emptyForm;
+  });
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -497,6 +532,17 @@ export default function CheckinForm({
       if (upsertErr) throw upsertErr;
 
       setSavedMsg("Registro salvo.");
+      if (checkinParaEditar) {
+        // Corrigir um registro específico é uma ação pontual — fecha
+        // sozinho depois de salvar, em vez de deixar pronto pra "próximo
+        // dia" (isso só faz sentido no fluxo normal de preencher, não numa
+        // correção). Não atualiza recentRows/alerta por e-mail aqui: o
+        // componente está prestes a fechar, e o painel já recarrega os
+        // dados sozinho via onSalvo.
+        onSalvo?.();
+        onFechar?.();
+        return;
+      }
       setForm({ ...emptyForm, atleta: athleteId, data: proximaData(form.data) });
       onSalvo?.();
 
@@ -809,7 +855,11 @@ export default function CheckinForm({
         <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 600, color: "#14201F" }}>
-          {atletaFixo ? `Preenchendo o check-in de ${nomeAtletaSelecionado}` : `Olá, ${nomeAtletaSelecionado}`}
+          {atletaFixo
+            ? checkinParaEditar
+              ? `Editando o check-in de ${nomeAtletaSelecionado}`
+              : `Preenchendo o check-in de ${nomeAtletaSelecionado}`
+            : `Olá, ${nomeAtletaSelecionado}`}
         </div>
         <button
           type="button"
@@ -819,6 +869,27 @@ export default function CheckinForm({
           {atletaFixo ? "fechar" : "trocar"}
         </button>
       </div>
+
+      {checkinParaEditar && (
+        <div
+          style={{
+            background: "#FBF3E7",
+            border: "1px solid #EED9B8",
+            borderRadius: 8,
+            padding: "10px 14px",
+            marginBottom: 18,
+            fontSize: 12.5,
+            color: "#14201F",
+          }}
+        >
+          Corrigindo o registro de {formatarDataCurta(checkinParaEditar.data)}. Se mudar a data, a modalidade ou o
+          tipo aqui, vira um registro novo em vez de corrigir este — mude só o que precisa ajustar.
+        </div>
+      )}
+
+      {/* Só faz sentido no aparelho do próprio atleta — nunca quando é o
+          treinador preenchendo por ele (atletaFixo) no painel. */}
+      {!atletaFixo && form.atleta && <AtivarLembrete athleteId={form.atleta} />}
 
       {sequenciaAtual >= 2 && (
         <div

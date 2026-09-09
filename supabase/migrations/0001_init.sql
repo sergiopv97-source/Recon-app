@@ -664,3 +664,53 @@ grant execute on function public.submit_checkin(
   uuid, date, text, text, text, numeric, numeric, numeric, integer, numeric,
   integer, integer, boolean, integer, integer, text, text
 ) to public;
+
+-- -----------------------------------------------------------------------------
+-- Tabela: push_subscriptions (lembrete de check-in)
+-- -----------------------------------------------------------------------------
+-- Guarda a "inscrição" de notificação push do navegador/celular de cada
+-- atleta (Web Push) — é isso que permite mandar um lembrete de check-in
+-- sem precisar de nenhum app na loja. Um atleta pode ter mais de uma
+-- (celular e computador, por exemplo). Ninguém lê essa tabela pelo
+-- navegador (nem atleta, nem treinador) — só a função abaixo escreve
+-- (quando o atleta ativa o lembrete), e a rotina automática que manda o
+-- lembrete (rodando com a chave de serviço, que ignora RLS) lê.
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id uuid not null references public.athletes (id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.push_subscriptions enable row level security;
+-- Sem nenhuma policy pra anon/authenticated de propósito: só a função
+-- salvar_push_subscription (SECURITY DEFINER) escreve, e a rotina
+-- automática (chave de serviço) lê — ninguém mais precisa acessar direto.
+
+-- -----------------------------------------------------------------------------
+-- Função: salvar_push_subscription
+-- -----------------------------------------------------------------------------
+-- Chamada pelo navegador do atleta quando ele ativa o lembrete diário de
+-- check-in. "on conflict (endpoint)" trata o caso de o mesmo
+-- navegador/aparelho reativar depois de já ter uma inscrição salva (troca
+-- de atleta no mesmo aparelho, por exemplo) — atualiza pro atleta certo em
+-- vez de duplicar.
+create or replace function public.salvar_push_subscription(p_athlete_id uuid, p_endpoint text, p_p256dh text, p_auth text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.push_subscriptions (athlete_id, endpoint, p256dh, auth)
+  values (p_athlete_id, p_endpoint, p_p256dh, p_auth)
+  on conflict (endpoint) do update set
+    athlete_id = excluded.athlete_id,
+    p256dh = excluded.p256dh,
+    auth = excluded.auth;
+end;
+$$;
+
+grant execute on function public.salvar_push_subscription(uuid, text, text, text) to public;

@@ -1,0 +1,13 @@
+{
+  "name": "Recon — Monitoramento de carga e recuperação",
+  "short_name": "Recon",
+  "description": "Check-in de treino e monitoramento de carga/recuperação",
+  "start_url": "/checkin",
+  "display": "standalone",
+  "background_color": "#F7F8F7",
+  "theme_color": "#297379",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

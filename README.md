@@ -170,6 +170,49 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Lembrete automático de check-in pro atleta** — todo dia às 20h
+(horário de Brasília), quem ainda não preencheu o check-in daquele dia e
+ativou o lembrete recebe uma notificação no celular/computador, mesmo com
+o site fechado. É opcional pro atleta: no check-in, aparece um botão
+**"🔔 Ativar lembrete diário de check-in"** — cada um ativa (ou não) no
+próprio aparelho.
+- **No iPhone tem uma limitação da própria Apple**: só funciona depois de
+  adicionar o Recon à tela de início (compartilhar → "Adicionar à Tela de
+  Início") — o site já avisa isso na hora de ativar. No Android e
+  computador funciona direto, sem esse passo.
+- Pra ativar essa funcionalidade, precisa de **3 variáveis de ambiente
+  novas** na Vercel — diferente das outras, essas não vêm de nenhuma conta
+  sua, foram geradas uma vez só pra esse projeto (pediu pra mim, eu te
+  passo os valores exatos por fora do código, nunca ficam salvos no
+  repositório por serem uma chave sensível):
+  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  - `VAPID_PRIVATE_KEY`
+  - `VAPID_SUBJECT` (um contato tipo `mailto:seuemail@gmail.com`, exigido
+    pelo protocolo de notificação push)
+- Também precisa do `SUPABASE_SERVICE_ROLE_KEY` e `CRON_SECRET` (as mesmas
+  já usadas pelo resumo semanal — se você já configurou aquele, já
+  reaproveita aqui, não precisa configurar de novo).
+- Sem essas variáveis, o botão de ativar continua aparecendo mas avisa que
+  ainda não está disponível — nada quebra.
+- Rode o SQL abaixo pra criar a tabela que guarda quem ativou o lembrete.
+
+✅ **Exportar todos os atletas numa planilha só** — no painel, o botão
+**"📊 Exportar planilha (todos os atletas)"** baixa um `.csv` (abre no
+Excel/Google Sheets) com todo o histórico de check-ins de todos os
+atletas de uma vez — uma linha por check-in, com atleta, data, carga,
+sono, estresse, dor, alertas etc. Complementa o resumo em PDF (que é por
+atleta) com uma visão panorâmica de todo mundo. Nenhuma mudança de banco
+de dados.
+
+✅ **Corrigir um check-in específico já enviado** — antes, só dava pra
+apagar o atleta inteiro (perdendo tudo) ou esperar o próprio atleta
+reenviar no mesmo dia. Agora, na tabela de histórico de cada atleta, tem
+um botão **"Editar"** em cada linha — abre o mesmo formulário do check-in
+já preenchido com os dados daquele registro, pra corrigir um erro de
+digitação. Atenção: mudar a data, a modalidade ou o tipo enquanto edita
+cria um registro novo em vez de corrigir o antigo (o site avisa isso na
+tela) — mude só o que precisa ajustar. Nenhuma mudança de banco de dados.
+
 ✅ **Estresse percebido passa a contar nos alertas** — o check-in já
 perguntava o estresse percebido do atleta todo dia, mas isso nunca
 influenciava nenhum alerta, só ficava no histórico. Agora conta de duas

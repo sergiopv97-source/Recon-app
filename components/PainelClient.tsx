@@ -22,6 +22,7 @@ import {
 import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type ProfessionalRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
 import { gerarResumoPdf, carregarLogoBase64 } from "@/lib/pdfResumo";
+import { gerarPlanilhaAtletas } from "@/lib/exportPlanilha";
 import { errorMessage } from "@/lib/errors";
 import Badge from "@/components/Badge";
 import HistoricoChart from "@/components/HistoricoChart";
@@ -57,10 +58,14 @@ export default function PainelClient() {
   const [salvandoPin, setSalvandoPin] = useState(false);
   const [pinMsg, setPinMsg] = useState("");
 
-  // Atleta cujo check-in está sendo preenchido pelo próprio treinador (ex:
-  // atleta mandou as respostas por mensagem porque não consegue usar o
-  // app). Reaproveita o CheckinForm inteiro, já identificado, sem PIN.
+  // Atleta cujo check-in está sendo preenchido (ou corrigido) pelo próprio
+  // treinador (ex: atleta mandou as respostas por mensagem porque não
+  // consegue usar o app, ou um registro antigo tem um erro de digitação).
+  // Reaproveita o CheckinForm inteiro, já identificado, sem PIN.
   const [checkinAtletaId, setCheckinAtletaId] = useState<string | null>(null);
+  // Registro específico sendo corrigido (null = preenchendo um novo, não
+  // corrigindo um existente) — ver botão "Editar" na tabela de histórico.
+  const [checkinEditando, setCheckinEditando] = useState<CheckinComputed | null>(null);
 
   // Link de check-in próprio do profissional logado (/checkin/[slug]).
   const [profissional, setProfissional] = useState<ProfessionalRow | null>(null);
@@ -494,6 +499,27 @@ export default function PainelClient() {
         </div>
       </div>
 
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button
+          type="button"
+          onClick={() => gerarPlanilhaAtletas(athletes, porAtleta)}
+          disabled={athletes.length === 0}
+          style={{
+            padding: "8px 14px",
+            background: "#FFFFFF",
+            border: "1px solid #297379",
+            borderRadius: 6,
+            color: "#297379",
+            fontSize: 12.5,
+            fontWeight: 600,
+            cursor: athletes.length === 0 ? "not-allowed" : "pointer",
+            opacity: athletes.length === 0 ? 0.6 : 1,
+          }}
+        >
+          📊 Exportar planilha (todos os atletas)
+        </button>
+      </div>
+
       <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
         {(
           [
@@ -715,10 +741,13 @@ export default function PainelClient() {
                       <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
                         <button
                           type="button"
-                          onClick={() => setCheckinAtletaId(checkinAtletaId === athleteId ? null : athleteId)}
+                          onClick={() => {
+                            setCheckinEditando(null);
+                            setCheckinAtletaId(checkinAtletaId === athleteId ? null : athleteId);
+                          }}
                           style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
                         >
-                          {checkinAtletaId === athleteId ? "Fechar preenchimento" : "Preencher check-in por ele"}
+                          {checkinAtletaId === athleteId && !checkinEditando ? "Fechar preenchimento" : "Preencher check-in por ele"}
                         </button>
                         <button
                           type="button"
@@ -749,14 +778,21 @@ export default function PainelClient() {
 
                       {checkinAtletaId === athleteId && infoAtleta.owner_id && (
                         <div style={{ marginTop: 12, padding: "14px", background: "#FFFFFF", border: "1px solid #DCE3E1", borderRadius: 8 }}>
-                          <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 12 }}>
-                            Use pra registrar o check-in de {infoAtleta.nome} com base no que ele te passou (mensagem, áudio etc.) — sem precisar que ele
-                            mesmo acesse o site.
-                          </div>
+                          {!checkinEditando && (
+                            <div style={{ fontSize: 12, color: "#5B6664", marginBottom: 12 }}>
+                              Use pra registrar o check-in de {infoAtleta.nome} com base no que ele te passou (mensagem, áudio etc.) — sem precisar que
+                              ele mesmo acesse o site.
+                            </div>
+                          )}
                           <CheckinForm
+                            key={checkinEditando?.id ?? "novo"}
                             ownerIdFixo={infoAtleta.owner_id}
                             atletaFixo={{ id: athleteId, nome: infoAtleta.nome }}
-                            onFechar={() => setCheckinAtletaId(null)}
+                            checkinParaEditar={checkinEditando ?? undefined}
+                            onFechar={() => {
+                              setCheckinAtletaId(null);
+                              setCheckinEditando(null);
+                            }}
                             onSalvo={load}
                           />
                         </div>
@@ -997,6 +1033,7 @@ export default function PainelClient() {
                         <th style={{ padding: "6px 8px" }}>Alerta carga</th>
                         <th style={{ padding: "6px 8px" }}>Alerta clínico</th>
                         <th style={{ padding: "6px 8px" }}>Padrão individual</th>
+                        <th style={{ padding: "6px 8px" }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1020,6 +1057,18 @@ export default function PainelClient() {
                             <Badge alerta={e.alertaClinico} />
                           </td>
                           <td style={{ padding: "6px 8px" }}>{e.alertaIndividual ? <Badge alerta={e.alertaIndividual} /> : "—"}</td>
+                          <td style={{ padding: "6px 8px" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCheckinEditando(e);
+                                setCheckinAtletaId(athleteId);
+                              }}
+                              style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                            >
+                              Editar
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
