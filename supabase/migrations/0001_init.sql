@@ -19,8 +19,26 @@ create extension if not exists "pgcrypto";
 create table if not exists public.professionals (
   id uuid primary key references auth.users (id) on delete cascade,
   nome text,
+  -- Identificador curto e único usado no link de check-in próprio de cada
+  -- profissional (ex: recon-app.vercel.app/checkin/sergio-vargas). Só
+  -- letras minúsculas, números e hífen — validado na função
+  -- definir_slug_profissional mais abaixo, nunca escrito direto na tabela.
+  slug text,
   created_at timestamptz not null default now()
 );
+
+-- Caso a tabela já exista de uma instalação anterior (antes do slug
+-- existir), garante a coluna.
+alter table public.professionals add column if not exists slug text;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'professionals_slug_key'
+  ) then
+    alter table public.professionals add constraint professionals_slug_key unique (slug);
+  end if;
+end $$;
 
 alter table public.professionals enable row level security;
 
@@ -37,6 +55,14 @@ select id, 'Sergio Vargas'
 from auth.users
 where email = 'sergiopv97@gmail.com'
 on conflict (id) do nothing;
+
+-- Slug pra você (o link de check-in vira /checkin/sergio-vargas) — só
+-- preenche se ainda não tiver um definido (não sobrescreve se você já
+-- tiver trocado pelo painel).
+update public.professionals
+set slug = 'sergio-vargas'
+where slug is null
+  and id = (select id from auth.users where email = 'sergiopv97@gmail.com' limit 1);
 
 -- -----------------------------------------------------------------------------
 -- Tabela: athletes (atletas/pacientes)
@@ -325,11 +351,11 @@ create policy "injuries: treinador apaga os proprios" on public.injuries
 -- -----------------------------------------------------------------------------
 -- Função: get_owner_padrao
 -- -----------------------------------------------------------------------------
--- Enquanto só existir um profissional (você), o check-in usa essa função
--- pra saber automaticamente "de qual profissional" é o cadastro/check-in
--- que está sendo feito, sem precisar de um link específico por profissional
--- ainda (isso vem numa etapa futura). Devolve o profissional mais antigo
--- cadastrado — com só um, é sempre você.
+-- Usada só pelo link de check-in antigo, sem slug ("/checkin", sem nada
+-- depois) — pra não quebrar pra quem já tem esse link salvo. Devolve o
+-- profissional mais antigo cadastrado (com só um, é sempre você). Todo
+-- link novo usa get_owner_by_slug abaixo, que aponta pro profissional
+-- certo em vez de sempre cair no mais antigo.
 create or replace function public.get_owner_padrao()
 returns uuid
 language sql
@@ -340,6 +366,56 @@ as $$
 $$;
 
 grant execute on function public.get_owner_padrao() to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: get_owner_by_slug
+-- -----------------------------------------------------------------------------
+-- Resolve o link de check-in próprio de cada profissional
+-- (/checkin/[slug]) pro id dele. Devolve null se o slug não existir —
+-- o site mostra uma mensagem clara nesse caso, em vez de travar.
+create or replace function public.get_owner_by_slug(p_slug text)
+returns uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select id from public.professionals where slug = lower(trim(p_slug));
+$$;
+
+grant execute on function public.get_owner_by_slug(text) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: definir_slug_profissional
+-- -----------------------------------------------------------------------------
+-- Deixa o profissional logado escolher ou trocar o próprio link de
+-- check-in (ex: "joao-fisio" vira /checkin/joao-fisio). Só letras
+-- minúsculas, números e hífen, entre 3 e 40 caracteres — e não pode
+-- repetir o de outro profissional (a constraint unique em "slug" garante
+-- isso mesmo se dois pedidos chegarem ao mesmo tempo; a checagem abaixo
+-- só existe pra dar uma mensagem de erro legível em vez do erro cru do
+-- banco).
+create or replace function public.definir_slug_profissional(p_slug text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_slug text := lower(trim(p_slug));
+begin
+  if v_slug !~ '^[a-z0-9]+(-[a-z0-9]+)*$' or char_length(v_slug) < 3 or char_length(v_slug) > 40 then
+    raise exception 'O link só pode ter letras minúsculas, números e hífen (sem espaços ou acentos), com 3 a 40 caracteres. Ex: joao-fisio.';
+  end if;
+
+  if exists (select 1 from public.professionals where slug = v_slug and id <> auth.uid()) then
+    raise exception 'Esse link já está em uso por outro profissional. Escolha outro.';
+  end if;
+
+  update public.professionals set slug = v_slug where id = auth.uid();
+end;
+$$;
+
+grant execute on function public.definir_slug_profissional(text) to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- Função: get_own_recent_checkins

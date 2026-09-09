@@ -75,7 +75,7 @@ const emptyForm = {
   observacoes: "",
 };
 
-export default function CheckinForm() {
+export default function CheckinForm({ slug }: { slug?: string }) {
   const supabase = useMemo(() => createClient(), []);
   const [roster, setRoster] = useState<AthleteRosterRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,24 +107,28 @@ export default function CheckinForm() {
   const [recadoGeral, setRecadoGeral] = useState<RecadoRow | null>(null);
   const [recadoPessoal, setRecadoPessoal] = useState<RecadoRow | null>(null);
 
-  // De qual profissional é esse check-in. Enquanto só existir um
-  // profissional cadastrado, o site descobre isso sozinho (get_owner_padrao)
-  // — quando tiver vários, cada um vai ter seu próprio link e isso muda pra
-  // vir da URL em vez de uma função "padrão".
+  // De qual profissional é esse check-in. Com o link próprio de cada
+  // profissional (/checkin/[slug]), o site resolve isso pelo slug da URL;
+  // sem slug (o link antigo, só "/checkin"), continua caindo no profissional
+  // padrão (get_owner_padrao) — assim o link que os atletas já usam não
+  // quebra pra ninguém.
   const [ownerPadrao, setOwnerPadrao] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase.rpc("get_owner_padrao");
+      const { data, error } = slug ? await supabase.rpc("get_owner_by_slug", { p_slug: slug }) : await supabase.rpc("get_owner_padrao");
       if (!error && data) {
         setOwnerPadrao(data);
+      } else if (slug) {
+        setErroCarregamento("Esse link de check-in não existe ou não está mais ativo. Confirma o endereço com seu profissional.");
+        setLoading(false);
       } else {
         setErroCarregamento("Não consegui carregar o check-in agora. Tenta atualizar a página em alguns minutos.");
         setLoading(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [slug]);
 
   // Recado pra todo mundo (athlete_id nulo) — dá pra buscar antes de saber
   // quem é o atleta, mas só depois de saber de qual profissional é (senão

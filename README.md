@@ -161,19 +161,37 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Link de check-in próprio por profissional (Fase 3 de 3)** — cada
+profissional agora pode ter o próprio link de check-in, no formato
+`seusite.com/checkin/seu-link` (ex: `/checkin/sergio-vargas`), em vez de
+todo mundo compartilhar o mesmo `/checkin` genérico. Isso é o que separa
+de verdade os atletas de um profissional dos de outro no dia a dia — cada
+um manda o próprio link pros próprios atletas.
+- **O link antigo (`/checkin`, sem nada depois) continua funcionando pra
+  você**, caindo automaticamente no profissional padrão — nada quebra pra
+  atletas que já têm esse link salvo no celular.
+- Pra pegar (ou trocar) o seu link novo: entre no painel, tem um card novo
+  no topo, **"Seu link de check-in"**. Escolha um final (só letras
+  minúsculas, números e hífen — ex: `sergio-vargas`) e salve. Seu link já
+  vem pré-preenchido como `sergio-vargas` assim que você rodar o SQL
+  abaixo, mas pode trocar quando quiser.
+- Essa parte ainda não tem cadastro público de profissional novo (isso é a
+  Fase 2, ainda não feita) — por enquanto, um profissional novo só existe
+  se for criado manualmente no Supabase, do mesmo jeito que sua conta foi
+  criada (ver item 2.6 acima).
+
 ✅ **Base para múltiplos profissionais (Fase 1 de 3)** — pensando num futuro
 em que o Recon seja usado por outros fisioterapeutas/educadores físicos (não
 só você), o banco de dados agora sabe "de qual profissional" é cada atleta,
 check-in, recado e registro de lesão/doença. **Isso não muda nada na sua
 experiência hoje** — o site continua igual, com um profissional só (você).
 O que muda é a base de segurança: cada profissional só vai conseguir ver os
-próprios atletas, nunca os de outro. Ainda faltam a Fase 2 (tela de cadastro
-pra novos profissionais se inscreverem sozinhos) e a Fase 3 (link de
-check-in próprio pra cada profissional, em vez do link único de hoje) — por
-enquanto o login por e-mail/senha que você já usa continua sendo o único
-jeito de entrar como profissional.
+próprios atletas, nunca os de outro. Falta só a Fase 2 (tela de cadastro
+pra novos profissionais se inscreverem sozinhos) — por enquanto o login por
+e-mail/senha que você já usa continua sendo o único jeito de entrar como
+profissional.
 
-Pra ativar, rode novamente **todo o conteúdo** do arquivo
+Pra ativar as Fases 1 e 3, rode novamente **todo o conteúdo** do arquivo
 `supabase/migrations/0001_init.sql` no **Supabase SQL Editor** (mesmo passo
 do item 2.5 lá em cima). É seguro rodar de novo com dados existentes — o
 arquivo inteiro foi escrito pra isso (só cria o que ainda não existe e

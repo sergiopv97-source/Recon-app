@@ -19,7 +19,7 @@ import {
   type CheckinComputed,
   type Modalidade,
 } from "@/lib/recon";
-import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type RecadoRow } from "@/lib/db-types";
+import { checkinRowToInput, type AthleteRow, type CheckinRow, type InjuryRow, type ProfessionalRow, type RecadoRow } from "@/lib/db-types";
 import { inputStyle, cardStyle } from "@/lib/ui";
 import { gerarResumoPdf, carregarLogoBase64 } from "@/lib/pdfResumo";
 import { errorMessage } from "@/lib/errors";
@@ -56,6 +56,13 @@ export default function PainelClient() {
   const [salvandoPin, setSalvandoPin] = useState(false);
   const [pinMsg, setPinMsg] = useState("");
 
+  // Link de check-in próprio do profissional logado (/checkin/[slug]).
+  const [profissional, setProfissional] = useState<ProfessionalRow | null>(null);
+  const [editandoSlug, setEditandoSlug] = useState(false);
+  const [slugInput, setSlugInput] = useState("");
+  const [salvandoSlug, setSalvandoSlug] = useState(false);
+  const [slugMsg, setSlugMsg] = useState("");
+
   async function load() {
     setLoading(true);
     // recados tem leitura liberada pra qualquer um no banco (o atleta sem
@@ -65,19 +72,43 @@ export default function PainelClient() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const [a, c, l, r] = await Promise.all([
+    const [a, c, l, r, p] = await Promise.all([
       supabase.from("athletes").select("*").order("nome", { ascending: true }),
       supabase.from("checkins").select("*"),
       supabase.from("injuries").select("*"),
       user
         ? supabase.from("recados").select("*").eq("owner_id", user.id).order("criado_em", { ascending: false })
         : Promise.resolve({ data: null } as { data: RecadoRow[] | null }),
+      user
+        ? supabase.from("professionals").select("id, nome, slug").eq("id", user.id).single()
+        : Promise.resolve({ data: null } as { data: ProfessionalRow | null }),
     ]);
     if (a.data) setAthletes(a.data as AthleteRow[]);
     if (c.data) setCheckins(c.data as CheckinRow[]);
     if (l.data) setInjuries(l.data as InjuryRow[]);
     if (r.data) setRecados(r.data as RecadoRow[]);
+    if (p.data) setProfissional(p.data as ProfessionalRow);
     setLoading(false);
+  }
+
+  // Cria/troca o link de check-in próprio (ex: joao-fisio vira
+  // /checkin/joao-fisio). A validação de formato e de duplicidade é feita
+  // no banco (definir_slug_profissional) — aqui só repassamos a mensagem
+  // de erro dele, se houver.
+  async function salvarSlug() {
+    const valor = slugInput.trim().toLowerCase();
+    if (!valor) return;
+    setSalvandoSlug(true);
+    setSlugMsg("");
+    const { error } = await supabase.rpc("definir_slug_profissional", { p_slug: valor });
+    setSalvandoSlug(false);
+    if (error) {
+      setSlugMsg(errorMessage(error));
+      return;
+    }
+    setEditandoSlug(false);
+    setSlugInput("");
+    load();
   }
 
   useEffect(() => {
@@ -288,6 +319,97 @@ export default function PainelClient() {
         >
           Sair
         </button>
+      </div>
+
+      <div style={{ ...cardStyle, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 8 }}>Seu link de check-in</div>
+        {profissional?.slug && !editandoSlug ? (
+          <>
+            <div style={{ fontSize: 11.5, color: "#5B6664", marginBottom: 10 }}>
+              Esse é o link que você manda pros seus atletas — cada um seleciona o próprio nome nele.
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  ...inputStyle,
+                  marginTop: 0,
+                  flex: 1,
+                  minWidth: 200,
+                  background: "#F4F1EA",
+                  color: "#14201F",
+                  overflow: "auto",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {typeof window !== "undefined" ? window.location.origin : ""}/checkin/{profissional.slug}
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const link = `${window.location.origin}/checkin/${profissional.slug}`;
+                  try {
+                    await navigator.clipboard.writeText(link);
+                    setSlugMsg("Link copiado.");
+                  } catch {
+                    setSlugMsg("Não consegui copiar automático — copia o link acima na mão.");
+                  }
+                }}
+                style={{ padding: "0 14px", height: 38, background: "#297379", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Copiar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSlugInput(profissional.slug ?? "");
+                  setEditandoSlug(true);
+                  setSlugMsg("");
+                }}
+                style={{ background: "none", border: "none", color: "#5B6664", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+              >
+                Trocar
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 11.5, color: "#5B6664", marginBottom: 10 }}>
+              {profissional?.slug
+                ? "Escolha o novo final do link (só letras minúsculas, números e hífen, ex: joao-fisio)."
+                : "Escolha o final do seu link de check-in (só letras minúsculas, números e hífen, ex: joao-fisio) — é o que você vai mandar pros atletas."}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: "#5B6664" }}>/checkin/</span>
+              <input
+                style={{ ...inputStyle, marginTop: 0, flex: 1, minWidth: 160 }}
+                placeholder="joao-fisio"
+                value={slugInput}
+                onChange={(e) => setSlugInput(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={salvarSlug}
+                disabled={salvandoSlug || !slugInput.trim()}
+                style={{ padding: "0 14px", height: 38, background: "#297379", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                {salvandoSlug ? "Salvando…" : "Salvar"}
+              </button>
+              {profissional?.slug && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditandoSlug(false);
+                    setSlugMsg("");
+                  }}
+                  style={{ background: "none", border: "none", color: "#5B6664", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </>
+        )}
+        {slugMsg && <div style={{ fontSize: 12, color: slugMsg === "Link copiado." ? "#297379" : "#B23A32", marginTop: 8 }}>{slugMsg}</div>}
       </div>
 
       <div style={{ ...cardStyle, marginBottom: 20 }}>

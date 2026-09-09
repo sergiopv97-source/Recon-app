@@ -59,6 +59,14 @@ export interface CheckinRow {
   created_at: string;
 }
 
+export interface ProfessionalRow {
+  id: string;
+  nome: string | null;
+  // Link de check-in próprio (/checkin/[slug]) — null até o profissional
+  // definir um pelo painel (ver definir_slug_profissional).
+  slug: string | null;
+}
+
 export interface RecadoRow {
   id: string;
   mensagem: string;
