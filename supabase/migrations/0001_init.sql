@@ -65,6 +65,38 @@ where slug is null
   and id = (select id from auth.users where email = 'sergiopv97@gmail.com' limit 1);
 
 -- -----------------------------------------------------------------------------
+-- Gatilho: cria a linha em "professionals" sozinho pra toda conta nova
+-- -----------------------------------------------------------------------------
+-- Fase 2 (cadastro público de profissional): assim que uma conta nova é
+-- criada em auth.users — seja pelo cadastro público (/cadastro) ou por
+-- você criando manualmente pelo Supabase — esse gatilho garante que ela já
+-- nasce com uma linha em "professionals" (sem isso, a conta logaria mas o
+-- painel não teria de quem são os atletas). O "nome" vem do que a pessoa
+-- digitou no cadastro (guardado em raw_user_meta_data pelo signUp do
+-- Supabase); fica null se a conta foi criada na mão sem preencher isso —
+-- sem problema, dá pra completar depois. O slug (link de check-in) não é
+-- preenchido aqui de propósito: cada profissional escolhe o próprio,
+-- pelo painel (card "Seu link de check-in"), na primeira vez que entrar.
+create or replace function public.handle_new_professional()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.professionals (id, nome)
+  values (new.id, new.raw_user_meta_data ->> 'nome')
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_professional();
+
+-- -----------------------------------------------------------------------------
 -- Tabela: athletes (atletas/pacientes)
 -- -----------------------------------------------------------------------------
 create table if not exists public.athletes (

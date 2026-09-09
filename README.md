@@ -83,8 +83,11 @@ que suficiente pra esse piloto.
    senha que **você** vai usar pra entrar no painel do treinador. Marque a
    opção de já confirmar o e-mail automaticamente (**"Auto Confirm
    User"**), já que você mesmo está criando essa conta.
-   - Não existe cadastro público de treinador — só você (ou quem você
-     autorizar) tem uma conta, criada manualmente aqui.
+   - Isso é só pra criar a **sua** conta agora, na mão. Outros
+     fisioterapeutas/educadores físicos que forem usar o Recon depois não
+     precisam desse passo — eles criam a própria conta sozinhos em
+     **`/cadastro`** (ver item 6 mais abaixo, "Cadastro público de
+     profissional").
 7. Por fim, clique em **"Project Settings" (ícone de engrenagem) → "Data
    API"**. Anote dois valores que você vai usar no próximo passo:
    - **Project URL** (algo como `https://xxxxx.supabase.co`)
@@ -160,6 +163,26 @@ painel) usa essas mesmas funções.
 ---
 
 ## 6. O que ainda falta / próximos passos
+
+✅ **Cadastro público de profissional (Fase 2 de 3)** — agora qualquer
+fisioterapeuta ou educador físico consegue criar a própria conta sozinho,
+em **`/cadastro`** (nome, e-mail e senha) — sem precisar que você crie a
+conta dele na mão pelo Supabase. Assim que a conta é confirmada, a pessoa
+já entra no próprio painel, com os próprios atletas separados dos seus, e
+escolhe o próprio link de check-in por lá (card "Seu link de check-in").
+A tela de login (`/login`) agora tem um link "Cadastre-se" apontando pra
+lá.
+- **Um detalhe pra você conferir no Supabase**: em **Authentication →
+  Sign In / Providers** (ou "Email", dependendo da versão), existe uma
+  opção **"Confirm email"**. Se estiver **ligada** (é o padrão), quem se
+  cadastra recebe um e-mail de confirmação e só consegue entrar depois de
+  clicar no link — o site já mostra essa mensagem pra pessoa. Se estiver
+  **desligada**, a conta já entra logada na hora, sem e-mail nenhum. As
+  duas opções funcionam com o Recon, é só uma escolha sua de quanto
+  atrito/segurança quer no cadastro.
+- Pra ativar, rode de novo o SQL completo (mesmo arquivo de sempre, ver
+  item 2.5) — ele cria um gatilho no banco que prepara automaticamente a
+  área de cada profissional novo assim que a conta dele é criada.
 
 ✅ **Preencher check-in por um atleta, direto no painel** — pra quando um
 atleta não consegue (ou não quer) usar o site sozinho e te manda as
