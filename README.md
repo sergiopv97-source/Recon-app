@@ -170,6 +170,17 @@ painel) usa essas mesmas funções.
 
 ## 6. O que ainda falta / próximos passos
 
+✅ **Editar o próprio nome, e resumo semanal separado por profissional** —
+duas correções pra quando existe mais de um profissional usando o Recon:
+- No painel, card **"Seu nome"** (acima do link de check-in) — dá pra
+  definir ou corrigir o nome que aparece pra você mesmo, algo que antes só
+  vinha do cadastro e não tinha como editar depois.
+- O **resumo semanal por e-mail** (ver mais abaixo) agora manda um e-mail
+  separado pra cada profissional, só com os próprios atletas, em vez de
+  misturar todo mundo num e-mail só — ver detalhes na entrada dele.
+Nenhuma mudança de banco além de uma função nova (`definir_nome_profissional`)
+— roda o SQL de sempre.
+
 ✅ **Lembrete automático de check-in pro atleta** — todo dia às 20h
 (horário de Brasília), quem ainda não preencheu o check-in daquele dia e
 ativou o lembrete recebe uma notificação no celular/computador, mesmo com
@@ -325,28 +336,41 @@ que a função ainda não está disponível — o resto do check-in funciona
 normal. Usa o modelo Claude Haiku 4.5 (o mais barato) — cada print
 processado custa uma fração de centavo de dólar.
 
-✅ **Resumo semanal por e-mail** — toda segunda de manhã (10h UTC = 7h em
-Santa Maria), o site manda um e-mail pra você com a situação geral do
-grupo: quantos atletas em cada nível de risco, quem está com alerta
-vermelho no momento, e quem não preenche o check-in há 3 dias ou mais.
-Diferente do aviso de alerta vermelho (que dispara na hora, a cada
-check-in), esse é uma visão panorâmica, uma vez por semana. É opcional —
-precisa de duas variáveis de ambiente novas na Vercel, além das que já
-usam a Resend (`RESEND_API_KEY`, `TRAINER_EMAIL`):
-1. **`SUPABASE_SERVICE_ROLE_KEY`** — no Supabase, vá em **Project Settings
-   (ícone de engrenagem) → API Keys**, e copie a chave marcada como
-   **`service_role`** (não é a mesma chave pública/anon que você já usa —
-   essa aqui é secreta, nunca deve aparecer no navegador. Cole ela direto
-   na Vercel, nunca em nenhum outro lugar).
-2. **`CRON_SECRET`** — uma senha aleatória qualquer, só pra confirmar que
-   quem está chamando essa função é a própria Vercel, não um visitante.
-   Pode gerar uma em qualquer gerador de senha (16+ caracteres já serve).
-3. Na Vercel, em **Project Settings → Environment Variables**, adicione as
-   duas.
-4. Redeploy o site.
-O agendamento em si (toda segunda) já está configurado no código
-(`vercel.json`) — não precisa mexer em nada além das duas variáveis
-acima. Sem elas, o resumo simplesmente não é enviado (nada quebra).
+✅ **Resumo semanal por e-mail, um por profissional** — toda segunda de
+manhã (10h UTC = 7h em Santa Maria), cada profissional cadastrado no
+Recon recebe um e-mail (no mesmo e-mail que usa pra fazer login) com a
+situação geral dos **próprios** atletas: quantos em cada nível de risco,
+quem está com alerta vermelho no momento, e quem não preenche o check-in
+há 3 dias ou mais. Diferente do aviso de alerta vermelho (que dispara na
+hora, a cada check-in), esse é uma visão panorâmica, uma vez por semana.
+- **Antes de outros profissionais existirem**, essa rotina mandava um
+  único e-mail (pra um endereço fixo, `TRAINER_EMAIL`) misturando os
+  atletas de todo mundo — funcionava bem com um profissional só, mas
+  deixou de fazer sentido assim que o cadastro público entrou no ar.
+  Agora cada um recebe o próprio resumo, no próprio e-mail de login,
+  automaticamente — nada pra configurar por profissional.
+- É opcional — precisa de duas variáveis de ambiente na Vercel:
+  1. **`SUPABASE_SERVICE_ROLE_KEY`** — no Supabase, vá em **Project
+     Settings (ícone de engrenagem) → API Keys**, e copie a chave marcada
+     como **`service_role`** (não é a mesma chave pública/anon que você já
+     usa — essa aqui é secreta, nunca deve aparecer no navegador. Cole ela
+     direto na Vercel, nunca em nenhum outro lugar).
+  2. **`CRON_SECRET`** — uma senha aleatória qualquer, só pra confirmar
+     que quem está chamando essa função é a própria Vercel, não um
+     visitante. Pode gerar uma em qualquer gerador de senha (16+
+     caracteres já serve).
+  3. Na Vercel, em **Project Settings → Environment Variables**, adicione
+     as duas.
+  4. Redeploy o site.
+- O agendamento em si (toda segunda) já está configurado no código
+  (`vercel.json`) — não precisa mexer em nada além das duas variáveis
+  acima. Sem elas, o resumo simplesmente não é enviado (nada quebra).
+- A `TRAINER_EMAIL` que você já tinha configurado continua sendo usada,
+  mas só pelo **aviso de alerta vermelho na hora** (o outro e-mail,
+  diferente desse) — esse aviso instantâneo ainda manda tudo pro mesmo
+  endereço fixo, independente de qual profissional é o atleta. Isso é uma
+  limitação conhecida, ainda não corrigida (só o resumo semanal foi
+  separado por profissional até agora).
 
 ✅ **PIN por atleta** — resolve a falha de identidade que existia desde o
 início: qualquer um podia preencher o check-in em nome de outro atleta só

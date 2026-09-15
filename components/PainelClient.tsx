@@ -74,6 +74,12 @@ export default function PainelClient() {
   const [salvandoSlug, setSalvandoSlug] = useState(false);
   const [slugMsg, setSlugMsg] = useState("");
 
+  // Nome do profissional logado (só aparece pra ele mesmo no painel).
+  const [editandoNome, setEditandoNome] = useState(false);
+  const [nomeInput, setNomeInput] = useState("");
+  const [salvandoNome, setSalvandoNome] = useState(false);
+  const [nomeMsg, setNomeMsg] = useState("");
+
   async function load() {
     setLoading(true);
     // recados tem leitura liberada pra qualquer um no banco (o atleta sem
@@ -119,6 +125,24 @@ export default function PainelClient() {
     }
     setEditandoSlug(false);
     setSlugInput("");
+    load();
+  }
+
+  // Edita o nome do profissional — sem validação de formato (é só um
+  // nome), a função no banco só recusa vazio.
+  async function salvarNome() {
+    const valor = nomeInput.trim();
+    if (!valor) return;
+    setSalvandoNome(true);
+    setNomeMsg("");
+    const { error } = await supabase.rpc("definir_nome_profissional", { p_nome: valor });
+    setSalvandoNome(false);
+    if (error) {
+      setNomeMsg(errorMessage(error));
+      return;
+    }
+    setEditandoNome(false);
+    setNomeInput("");
     load();
   }
 
@@ -330,6 +354,55 @@ export default function PainelClient() {
         >
           Sair
         </button>
+      </div>
+
+      <div style={{ ...cardStyle, marginBottom: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "#14201F", marginBottom: 8 }}>Seu nome</div>
+        {editandoNome ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              style={{ ...inputStyle, marginTop: 0, flex: 1, minWidth: 160 }}
+              placeholder="Seu nome completo"
+              value={nomeInput}
+              onChange={(e) => setNomeInput(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={salvarNome}
+              disabled={salvandoNome || !nomeInput.trim()}
+              style={{ padding: "0 14px", height: 38, background: "#297379", border: "none", borderRadius: 6, color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              {salvandoNome ? "Salvando…" : "Salvar"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditandoNome(false);
+                setNomeMsg("");
+              }}
+              style={{ background: "none", border: "none", color: "#5B6664", fontSize: 12, cursor: "pointer", textDecoration: "underline" }}
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={{ fontSize: 14, color: profissional?.nome ? "#14201F" : "#93A19E" }}>{profissional?.nome || "Nome ainda não definido"}</div>
+            <button
+              type="button"
+              onClick={() => {
+                setNomeInput(profissional?.nome ?? "");
+                setEditandoNome(true);
+                setNomeMsg("");
+              }}
+              style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+            >
+              {profissional?.nome ? "Editar" : "Definir nome"}
+            </button>
+          </div>
+        )}
+        {nomeMsg && <div style={{ fontSize: 12, color: "#B23A32", marginTop: 8 }}>{nomeMsg}</div>}
       </div>
 
       <div style={{ ...cardStyle, marginBottom: 20 }}>

@@ -714,3 +714,27 @@ end;
 $$;
 
 grant execute on function public.salvar_push_subscription(uuid, text, text, text) to public;
+
+-- -----------------------------------------------------------------------------
+-- Função: definir_nome_profissional
+-- -----------------------------------------------------------------------------
+-- Deixa o profissional logado editar o próprio nome (o que aparece pra
+-- ele no painel — nada visível pro atleta). Sem isso, o nome só existia
+-- se tivesse vindo do cadastro (/cadastro) ou de quem criou a conta na
+-- mão; não tinha como corrigir ou completar depois.
+create or replace function public.definir_nome_profissional(p_nome text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if trim(p_nome) = '' then
+    raise exception 'Informe um nome.';
+  end if;
+
+  update public.professionals set nome = trim(p_nome) where id = auth.uid();
+end;
+$$;
+
+grant execute on function public.definir_nome_profissional(text) to authenticated;
