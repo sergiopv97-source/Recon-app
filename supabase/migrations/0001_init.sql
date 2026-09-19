@@ -666,6 +666,75 @@ grant execute on function public.submit_checkin(
 ) to public;
 
 -- -----------------------------------------------------------------------------
+-- Função: update_checkin
+-- -----------------------------------------------------------------------------
+-- Corrige um check-in específico JÁ EXISTENTE, identificado pelo próprio id
+-- (não por atleta+data+modalidade+tipo como o submit_checkin). Existe
+-- separada do submit_checkin porque esta é "to authenticated" (só o
+-- treinador logado corrige, nunca o atleta sem login) e porque atualizar
+-- por id deixa seguro trocar QUALQUER campo — inclusive data, modalidade
+-- ou tipo — sem correr o risco de virar um registro novo e duplicado (que
+-- é o que aconteceria se essa correção reaproveitasse o upsert do
+-- submit_checkin, que casa por atleta+data+modalidade+tipo). Só corrige
+-- check-in de atleta do PRÓPRIO profissional (owner_id = auth.uid() no
+-- where) — se o id não for seu, a atualização não encontra nada e a
+-- função avisa em vez de falhar em silêncio.
+create or replace function public.update_checkin(
+  p_checkin_id uuid,
+  p_data date,
+  p_modalidade text,
+  p_tipo text,
+  p_tipo_outro text default null,
+  p_minutos numeric default null,
+  p_distancia_km numeric default null,
+  p_tempo_min numeric default null,
+  p_rpe integer default null,
+  p_sono_horas numeric default null,
+  p_fadiga integer default null,
+  p_estresse integer default null,
+  p_tem_dor boolean default false,
+  p_dor integer default 0,
+  p_recuperacao integer default null,
+  p_regiao_dor text default null,
+  p_observacoes text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.checkins set
+    data = p_data,
+    modalidade = p_modalidade,
+    tipo = p_tipo,
+    tipo_outro = p_tipo_outro,
+    minutos = p_minutos,
+    distancia_km = p_distancia_km,
+    tempo_min = p_tempo_min,
+    rpe = p_rpe,
+    sono_horas = p_sono_horas,
+    fadiga = p_fadiga,
+    estresse = p_estresse,
+    tem_dor = p_tem_dor,
+    dor = p_dor,
+    recuperacao = p_recuperacao,
+    regiao_dor = p_regiao_dor,
+    observacoes = p_observacoes
+  where id = p_checkin_id and owner_id = auth.uid();
+
+  if not found then
+    raise exception 'Check-in não encontrado ou você não tem permissão para editá-lo.';
+  end if;
+end;
+$$;
+
+grant execute on function public.update_checkin(
+  uuid, date, text, text, text, numeric, numeric, numeric, integer, numeric,
+  integer, integer, boolean, integer, integer, text, text
+) to authenticated;
+
+-- -----------------------------------------------------------------------------
 -- Tabela: push_subscriptions (lembrete de check-in)
 -- -----------------------------------------------------------------------------
 -- Guarda a "inscrição" de notificação push do navegador/celular de cada

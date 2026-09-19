@@ -220,9 +220,11 @@ apagar o atleta inteiro (perdendo tudo) ou esperar o próprio atleta
 reenviar no mesmo dia. Agora, na tabela de histórico de cada atleta, tem
 um botão **"Editar"** em cada linha — abre o mesmo formulário do check-in
 já preenchido com os dados daquele registro, pra corrigir um erro de
-digitação. Atenção: mudar a data, a modalidade ou o tipo enquanto edita
-cria um registro novo em vez de corrigir o antigo (o site avisa isso na
-tela) — mude só o que precisa ajustar. Nenhuma mudança de banco de dados.
+digitação (inclusive data, modalidade ou tipo errados). A correção usa
+uma função nova (`update_checkin`, que atualiza pelo id do registro, não
+mais pela combinação atleta+data+modalidade+tipo) — precisa rodar a
+migração `supabase/migrations/0001_init.sql` de novo no SQL Editor do
+Supabase pra ela existir no seu banco.
 
 ✅ **Estresse percebido passa a contar nos alertas** — o check-in já
 perguntava o estresse percebido do atleta todo dia, mas isso nunca

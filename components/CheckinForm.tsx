@@ -510,8 +510,12 @@ export default function CheckinForm({
         return;
       }
 
-      const { error: upsertErr } = await supabase.rpc("submit_checkin", {
-        p_athlete_id: athleteId,
+      // Corrigindo um registro já existente (checkinParaEditar): atualiza
+      // por id (update_checkin), não por atleta+data+modalidade+tipo — assim
+      // dá pra mudar QUALQUER campo, inclusive data/modalidade/tipo, sem
+      // duplicar o registro (o submit_checkin faz upsert por essa chave, o
+      // que criaria um registro novo em vez de corrigir o antigo).
+      const camposCheckin = {
         p_data: form.data,
         p_modalidade: form.modalidade,
         p_tipo: form.tipo,
@@ -528,7 +532,10 @@ export default function CheckinForm({
         p_recuperacao: Number(recuperacaoEfetiva),
         p_regiao_dor: form.regiaoDor || null,
         p_observacoes: form.observacoes || null,
-      });
+      };
+      const { error: upsertErr } = checkinParaEditar?.id
+        ? await supabase.rpc("update_checkin", { p_checkin_id: checkinParaEditar.id, ...camposCheckin })
+        : await supabase.rpc("submit_checkin", { p_athlete_id: athleteId, ...camposCheckin });
       if (upsertErr) throw upsertErr;
 
       setSavedMsg("Registro salvo.");
@@ -882,8 +889,8 @@ export default function CheckinForm({
             color: "#14201F",
           }}
         >
-          Corrigindo o registro de {formatarDataCurta(checkinParaEditar.data)}. Se mudar a data, a modalidade ou o
-          tipo aqui, vira um registro novo em vez de corrigir este — mude só o que precisa ajustar.
+          Corrigindo o registro de {formatarDataCurta(checkinParaEditar.data)}. Pode ajustar qualquer campo, inclusive
+          a data, a modalidade ou o tipo — a correção é salva neste mesmo registro, sem duplicar nada.
         </div>
       )}
 
