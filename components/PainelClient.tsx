@@ -299,6 +299,13 @@ export default function PainelClient() {
     }
   }
 
+  async function apagarCheckin(checkinId: string, dataFormatada: string) {
+    const confirmado = window.confirm(`Apagar o check-in de ${dataFormatada}? Não dá pra desfazer.`);
+    if (!confirmado) return;
+    const { error } = await supabase.from("checkins").delete().eq("id", checkinId);
+    if (!error) load();
+  }
+
   // Definir/redefinir o PIN de um atleta — usado pros que foram cadastrados
   // antes dessa funcionalidade existir (ainda sem PIN), ou se alguém
   // esquecer o próprio PIN.
@@ -1131,16 +1138,25 @@ export default function PainelClient() {
                           </td>
                           <td style={{ padding: "6px 8px" }}>{e.alertaIndividual ? <Badge alerta={e.alertaIndividual} /> : "—"}</td>
                           <td style={{ padding: "6px 8px" }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setCheckinEditando(e);
-                                setCheckinAtletaId(athleteId);
-                              }}
-                              style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
-                            >
-                              Editar
-                            </button>
+                            <div style={{ display: "flex", gap: 10 }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCheckinEditando(e);
+                                  setCheckinAtletaId(athleteId);
+                                }}
+                                style={{ background: "none", border: "none", color: "#297379", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => apagarCheckin(e.id!, formatarDataCurta(e.data))}
+                                style={{ background: "none", border: "none", color: "#B23A32", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: 0 }}
+                              >
+                                Apagar
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -215,16 +215,21 @@ sono, estresse, dor, alertas etc. Complementa o resumo em PDF (que é por
 atleta) com uma visão panorâmica de todo mundo. Nenhuma mudança de banco
 de dados.
 
-✅ **Corrigir um check-in específico já enviado** — antes, só dava pra
-apagar o atleta inteiro (perdendo tudo) ou esperar o próprio atleta
-reenviar no mesmo dia. Agora, na tabela de histórico de cada atleta, tem
-um botão **"Editar"** em cada linha — abre o mesmo formulário do check-in
-já preenchido com os dados daquele registro, pra corrigir um erro de
-digitação (inclusive data, modalidade ou tipo errados). A correção usa
-uma função nova (`update_checkin`, que atualiza pelo id do registro, não
-mais pela combinação atleta+data+modalidade+tipo) — precisa rodar a
-migração `supabase/migrations/0001_init.sql` de novo no SQL Editor do
-Supabase pra ela existir no seu banco.
+✅ **Corrigir ou apagar um check-in específico já enviado** — antes, só
+dava pra apagar o atleta inteiro (perdendo tudo) ou esperar o próprio
+atleta reenviar no mesmo dia. Agora, na tabela de histórico de cada
+atleta, cada linha tem dois botões:
+- **"Editar"** — abre o mesmo formulário do check-in já preenchido com os
+  dados daquele registro, pra corrigir um erro de digitação (inclusive
+  data, modalidade ou tipo errados). A correção usa uma função nova
+  (`update_checkin`, que atualiza pelo id do registro, não mais pela
+  combinação atleta+data+modalidade+tipo) — precisa rodar a migração
+  `supabase/migrations/0001_init.sql` de novo no SQL Editor do Supabase
+  pra ela existir no seu banco.
+- **"Apagar"** — remove só aquele registro (com confirmação antes), pra
+  quando o check-in foi enviado por engano e não faz sentido corrigir, só
+  excluir. Usa a policy de exclusão que já existia na tabela de
+  check-ins — nenhuma mudança de banco de dados pra este botão.
 
 ✅ **Estresse percebido passa a contar nos alertas** — o check-in já
 perguntava o estresse percebido do atleta todo dia, mas isso nunca
